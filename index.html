@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>(function(){var t;try{t=localStorage.getItem('orch-theme')}catch(e){}if(t!=='light'&&t!=='dark')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t})()</script>
+  <link rel="stylesheet" href="theme.css">
   <title>Pocket Orchestra</title>
   <meta name="description" content="A browser orchestra playing Pachelbel's Canon in D. Start any player, any time; everyone stays in time.">
   <meta name="theme-color" content="#0d0709">
@@ -56,6 +58,7 @@
       <div id="sections"></div>
     </section>
   </main>
+  <script type="module" src="theme.js"></script>
   <script type="module" src="drums.js"></script>
   <script type="module" src="stage.js"></script>
   <script type="module" src="app.js"></script>
