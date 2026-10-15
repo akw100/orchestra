@@ -476,6 +476,8 @@ function requestMode(on) {
   } else on ? enter() : exit();
 }
 $('.sb-pill').addEventListener('click', () => requestMode(true));
+// mouse clicks shouldn't leave a focus ring on a panel button while you type notes
+panel.addEventListener('click', (e) => { if (e.detail > 0) e.target.closest('button')?.blur(); });
 $('.sb-x').addEventListener('click', () => requestMode(false));
 addEventListener('orch:mode', (e) => (e.detail?.mode === 'play' ? enter() : e.detail?.mode === 'conduct' && exit()));
 addEventListener('orch:beat', (e) => {

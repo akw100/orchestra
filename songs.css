@@ -297,6 +297,8 @@
   .sb-text { height: 120px; }
   .sb-now span { display: none; }
   .sb-pill { right: 12px; bottom: 12px; }
+  .sb-k b { display: none; }
+  .sb-k span { margin-top: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sb *, .sb *::before, .sb *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
