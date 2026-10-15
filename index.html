@@ -48,13 +48,19 @@
 
     <section class="proscenium" aria-label="Stage">
       <div class="timeline" id="timeline" aria-hidden="true"></div>
-      <div id="stage-wrap"><canvas id="stage"></canvas></div>
+      <div id="stage-wrap"><canvas id="stage"></canvas>
+        <button id="split" class="th-toggle split-toggle" type="button" aria-pressed="false" aria-label="Split view: stage and players side by side">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2.5v11" stroke="currentColor" stroke-width="1.4"/></svg>
+          <span>Split view</span>
+        </button>
+      </div>
     </section>
 
     <section class="program" aria-labelledby="program-h">
       <header class="program-head">
         <h2 id="program-h">The Players</h2>
         <p class="tally" id="tally" aria-live="polite"></p>
+        <p class="hint">Click a player to start or stop them.<span class="mouse"> Right-click (or Shift-click) to switch between looping and playing once.</span></p>
       </header>
       <div id="sections"></div>
     </section>
@@ -66,5 +72,6 @@
   <script type="module" src="theater.js"></script>
   <script type="module" src="keys.js"></script>
   <script type="module" src="songs.js"></script>
+  <script type="module" src="net.js"></script>
 </body>
 </html>

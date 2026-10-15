@@ -444,10 +444,10 @@ export function setLoop(seat, loop) {
   emit('orch:change');
 }
 const shuffle = (a) => a.map((x) => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map((p) => p[1]);
-// mode: all | most | allbutone | solo | none
+// mode: all | solo | none
 export function section(instId, mode) {
   const list = seats.filter((s) => s.inst === instId);
-  const n = { all: list.length, most: Math.max(1, Math.ceil(list.length * 0.66)), allbutone: Math.max(1, list.length - 1), solo: 1, none: 0 }[mode];
+  const n = { all: list.length, solo: 1, none: 0 }[mode];
   const on = new Set(shuffle(list).slice(0, n));
   list.forEach((s) => (on.has(s) ? (s.active || play(s)) : s.active && stop(s)));
 }
