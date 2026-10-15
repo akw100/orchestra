@@ -332,6 +332,7 @@ function frame(now) {
   move(ringSec, 'sec', show && t.sec, 6);
   move(ringSeat, 'seat', show && t.seat, 4);
   ringSec.style.setProperty('--hue', t.hue); ringSeat.style.setProperty('--hue', t.hue);
+  ringSec.classList.toggle('is-fam', level() === 'fam');
   if (t.tag !== lastTag) { ringSec.querySelector('.k-tag').innerHTML = t.tag; lastTag = t.tag; }
   raf = show || hintsOn ? requestAnimationFrame(frame) : 0;
   if (hintsOn) placeHints();

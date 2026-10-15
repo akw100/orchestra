@@ -130,6 +130,7 @@
   font: italic 600 13px/1 var(--k-serif); box-shadow: 0 6px 14px -6px var(--k-drop);
 }
 .k-tag:empty { display: none; }
+.k-sec.is-fam .k-tag { left: auto; right: 14px; }
 .k-tag .k-cap { height: 20px; min-width: 20px; padding: 0 5px; font-size: 11px; font-style: normal; background: var(--k-accent-ink); color: var(--k-accent); border-color: transparent; box-shadow: none; translate: none; }
 .k-seat {
   border-radius: 14px;
