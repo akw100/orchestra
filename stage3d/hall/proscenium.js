@@ -4,12 +4,12 @@ import { DIM, archPoints, place, tube } from './util.js';
 
 function rosette(THREE, r = 0.11) {
   const prof = [[0, 0.05], [0.25, 0.07], [0.45, 0.04], [0.62, 0.06], [0.8, 0.035], [1, 0.0], [0, 0]].map(([x, y]) => new THREE.Vector2(x * r, y * r * 2.2));
-  const parts = [new THREE.LatheGeometry(prof.reverse(), 16).rotateX(Math.PI / 2)];
+  const parts = [new THREE.LatheGeometry(prof.reverse(), 12).rotateX(Math.PI / 2)];
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
-    parts.push(place(THREE, new THREE.SphereGeometry(r * 0.32, 8, 6), { pos: [Math.cos(a) * r * 0.62, Math.sin(a) * r * 0.62, r * 0.12], scale: [1.25, 0.8, 0.55], rot: [0, 0, a] }));
+    parts.push(place(THREE, new THREE.SphereGeometry(r * 0.32, 6, 4), { pos: [Math.cos(a) * r * 0.62, Math.sin(a) * r * 0.62, r * 0.12], scale: [1.25, 0.8, 0.55], rot: [0, 0, a] }));
   }
-  parts.push(place(THREE, new THREE.SphereGeometry(r * 0.26, 10, 8), { pos: [0, 0, r * 0.22] }));
+  parts.push(place(THREE, new THREE.SphereGeometry(r * 0.26, 8, 5), { pos: [0, 0, r * 0.22] }));
   return parts;
 }
 

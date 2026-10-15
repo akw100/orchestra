@@ -55,6 +55,8 @@ export function buildHouse(ctx, mats, add) {
   const r = rng(2026);
   const seats = [];      // {x,y,z,yaw}
   const people = [];     // {x,y,z,yaw,s}
+  const bulbsGeo = [];
+  const bulb = (x, y, z, s = 1) => bulbsGeo.push(place(THREE, new THREE.SphereGeometry(0.06 * s, 7, 5), { pos: [x, y, z], scale: [1, 1.5, 1] }));
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S = new THREE.Vector3(), E = new THREE.Euler();
 
   // ---- raked floor: one carpeted step per row ----
@@ -67,7 +69,6 @@ export function buildHouse(ctx, mats, add) {
     const z = rowZ(i) + 0.05;
     for (let x = -13.6; x <= 13.61; x += 0.58) {
       if (Math.abs(x) > 3.9 && Math.abs(x) < 5.0) continue;
-      if (low && i % 2) continue;
       const yaw = Math.atan2(x, z + 1.5);
       seats.push({ x, y, z, yaw });
       if (r() < 0.82) people.push({ x, y, z, yaw: yaw + (r() - 0.5) * 0.25, s: 0.9 + r() * 0.2 });
@@ -97,12 +98,46 @@ export function buildHouse(ctx, mats, add) {
     }
   }
 
+  // ---- wall dressing: wood wainscot, silk panels in gilt frames between full-height pilasters ----
+  {
+    const frame = (cx, cy, cz, w, h, axis) => {
+      // axis 'x': panel lies in the YZ plane (side walls); 'z': in the XY plane (back wall)
+      const t = 0.05, d = 0.06;
+      const bars = [[0, h / 2, w + t, t], [0, -h / 2, w + t, t], [w / 2, 0, t, h], [-w / 2, 0, t, h]];
+      for (const [du, dv, bw, bh] of bars) {
+        if (axis === 'x') add('gold', place(THREE, new THREE.BoxGeometry(d, bh, bw), { pos: [cx, cy + dv, cz + du] }));
+        else add('gold', place(THREE, new THREE.BoxGeometry(bw, bh, d), { pos: [cx + du, cy + dv, cz] }));
+      }
+      if (axis === 'x') add('velvet', place(THREE, new THREE.BoxGeometry(0.03, h, w), { pos: [cx, cy, cz] }));
+      else add('velvet', place(THREE, new THREE.BoxGeometry(w, h, 0.03), { pos: [cx, cy, cz] }));
+    };
+    for (const sx of [-1, 1]) {
+      const wx = sx * (HW - 0.02);
+      add('panel', place(THREE, new THREE.BoxGeometry(0.08, 3.2, DIM.houseBackZ - DIM.wallZ1), { pos: [wx, DIM.houseY + 1.6, (DIM.houseBackZ + DIM.wallZ1) / 2] }));
+      add('gold', place(THREE, new THREE.BoxGeometry(0.12, 0.06, DIM.houseBackZ - DIM.wallZ1), { pos: [wx, DIM.houseY + 3.2, (DIM.houseBackZ + DIM.wallZ1) / 2] }));
+      for (let k = 0; k <= BOX_N; k++) {
+        const z = BOX_Z0 + k * BOX_L;
+        add('plaster', place(THREE, new THREE.BoxGeometry(0.3, 5.0, 0.6), { pos: [sx * (HW - 0.15), 12.6, z] }));
+        add('gold', place(THREE, new THREE.BoxGeometry(0.4, 0.3, 0.75), { pos: [sx * (HW - 0.2), 15.0, z] }));
+        add('gold', place(THREE, new THREE.BoxGeometry(0.36, 0.08, 0.7), { pos: [sx * (HW - 0.18), 10.15, z] }));
+        if (k < BOX_N) frame(sx * (HW - 0.05), 12.55, z + BOX_L / 2, BOX_L - 1.3, 3.6, 'x');
+      }
+      if (DIM.houseBackZ - (BOX_Z0 + BOX_N * BOX_L) > 2) frame(sx * (HW - 0.05), 8.2, (BOX_Z0 + BOX_N * BOX_L + DIM.houseBackZ) / 2, DIM.houseBackZ - (BOX_Z0 + BOX_N * BOX_L) - 1.4, 4.6, 'x');
+    }
+    const bz = DIM.houseBackZ - 0.02;
+    for (const [cx, w] of [[0, 7.0], [-9.6, 4.6], [9.6, 4.6]]) frame(cx, 10.6, bz, w, 6.2, 'z');
+    for (const cx of [-6.0, 6.0, -13.2, 13.2]) {
+      add('plaster', place(THREE, new THREE.BoxGeometry(0.6, 8.6, 0.3), { pos: [cx, 11.2, bz - 0.15] }));
+      add('gold', place(THREE, new THREE.BoxGeometry(0.75, 0.3, 0.4), { pos: [cx, 15.0, bz - 0.2] }));
+      bulb(cx, 9.4, bz - 0.5, 1.1);
+      add('gold', tube(THREE, [[cx, 9.0, bz - 0.3], [cx, 9.1, bz - 0.45], [cx, 9.3, bz - 0.5]], 0.016, 8, 5));
+    }
+  }
+
   // ---- side boxes: two tiers, five boxes per side, gilt balustrades, velvet cushions, sconces ----
-  const bulbsGeo = [];
-  const bulb = (x, y, z, s = 1) => bulbsGeo.push(place(THREE, new THREE.SphereGeometry(0.06 * s, 10, 8), { pos: [x, y, z], scale: [1, 1.5, 1] }));
   {
     const balProf = [[0, 0], [0.05, 0], [0.05, 0.04], [0.03, 0.08], [0.055, 0.2], [0.03, 0.32], [0.025, 0.36], [0.045, 0.4], [0, 0.4]].map(([a, b]) => new THREE.Vector2(a, b));
-    const baluster = new THREE.LatheGeometry(balProf, 8);
+    const baluster = new THREE.LatheGeometry(balProf, 6);
     const L = BOX_N * BOX_L, zc = BOX_Z0 + L / 2, fx = HW - 2.0;
     for (const sx of [-1, 1]) {
       for (const yT of TIERS) {
@@ -168,7 +203,6 @@ export function buildHouse(ctx, mats, add) {
       st.lineTo(HW, -DIM.houseBackZ); st.lineTo(-HW, -DIM.houseBackZ); st.closePath();
       add('carpet', extrudeY(THREE, st, BALC_Y, yy));
       for (let x = -13.8; x <= 13.81; x += 0.6) {
-        if (low && k % 2) continue;
         const z = fz(x), yaw = Math.atan2(x, z + 1.5);
         seats.push({ x, y: yy, z, yaw });
         if (r() < 0.7) people.push({ x, y: yy, z, yaw: yaw + (r() - 0.5) * 0.2, s: 0.9 + r() * 0.2 });

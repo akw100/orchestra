@@ -244,8 +244,9 @@ export function buildCurtains(ctx, mats, add, tex) {
 
   function setCurtains(open, opts = {}) {
     const to = open ? 1 : 0;
-    let dur = opts.duration ?? (open ? 3.4 : 2.8);
-    if (ctx.reducedMotion) dur = Math.min(dur, 0.9);
+    let dur = opts.duration ?? (opts.curtainCall ? (open ? 2.2 : 1.9) : open ? 3.4 : 2.8);
+    if (opts.instant) dur = 0;
+    if (ctx.reducedMotion || opts.reducedMotion) dur = Math.min(dur, 0.9);
     if (dur <= 0) {
       st.top = st.hem = st.drive = st.from = st.to = to;
       st.vt = st.vh = 0; st.el = st.dur = 1;

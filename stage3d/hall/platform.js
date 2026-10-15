@@ -90,7 +90,7 @@ export function buildPlatform(ctx, mats, add) {
 
   // ---- footlights: gilt hoods along the apron lip, instanced bulbs whose glow follows the bands ----
   const FN = ctx.quality === 'low' ? 24 : 36;
-  const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.05, 10, 8), mats.footBulb, FN);
+  const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.06, 12, 8), mats.footBulb, FN);
   bulbs.name = 'footlights';
   const footS = new Float32Array(FN);
   {
@@ -101,17 +101,17 @@ export function buildPlatform(ctx, mats, add) {
       const dzdx = (apronZ(x + 0.01) - apronZ(x - 0.01)) / 0.02;
       const yaw = -Math.atan(dzdx);
       footS[i] = x / 10.1;
-      m.compose(new THREE.Vector3(x, 0.07, z), q.identity(), new THREE.Vector3(1, 0.8, 1));
+      m.compose(new THREE.Vector3(x, 0.085, z), q.identity(), new THREE.Vector3(1.6, 0.9, 1));
       bulbs.setMatrixAt(i, m);
       bulbs.setColorAt(i, new THREE.Color(1, 0.8, 0.5));
       // hood: half-cylinder shell open toward the stage, shielding the house
       const hood = new THREE.CylinderGeometry(0.1, 0.1, 0.34, 14, 1, true, -Math.PI / 2, Math.PI);
       hood.rotateZ(Math.PI / 2);
       e.set(0, yaw, 0);
-      add('gold', place(THREE, hood, { pos: [x, 0.06, z + 0.02], rot: [0, yaw, 0] }));
+      add('gold', place(THREE, hood, { pos: [x, -0.01, z + 0.03], rot: [0, yaw, 0] }));
       const cap = new THREE.CylinderGeometry(0.1, 0.1, 0.02, 14, 1, false, -Math.PI / 2, Math.PI);
-      add('gold', place(THREE, cap.rotateZ(Math.PI / 2), { pos: [x - 0.17 * Math.cos(yaw), 0.06, z + 0.02 + 0.17 * Math.sin(yaw)], rot: [0, yaw, 0] }));
-      add('gold', place(THREE, cap.clone(), { pos: [x + 0.17 * Math.cos(yaw), 0.06, z + 0.02 - 0.17 * Math.sin(yaw)], rot: [0, yaw, 0] }));
+      add('gold', place(THREE, cap.rotateZ(Math.PI / 2), { pos: [x - 0.17 * Math.cos(yaw), -0.01, z + 0.03 + 0.17 * Math.sin(yaw)], rot: [0, yaw, 0] }));
+      add('gold', place(THREE, cap.clone(), { pos: [x + 0.17 * Math.cos(yaw), -0.01, z + 0.03 - 0.17 * Math.sin(yaw)], rot: [0, yaw, 0] }));
     }
     bulbs.instanceMatrix.needsUpdate = true;
   }
@@ -242,7 +242,7 @@ export function buildPlatform(ctx, mats, add) {
   }
 
   // ---- per-frame: footlight glow follows level + bands (low centre, highs at the ends) ----
-  const col = new THREE.Color(), base = new THREE.Color(1, 0.75, 0.45);
+  const col = new THREE.Color(), base = new THREE.Color(1, 0.62, 0.3);
   let theme = 'dark';
   const state = { lift: 1 };
   function update(frame, house) {
@@ -265,7 +265,7 @@ export function buildPlatform(ctx, mats, add) {
   function applyTheme(th, P) {
     theme = th;
     footLight.color.copy(P.glow);
-    base.copy(P.glow).lerp(new THREE.Color(1, 0.85, 0.6), 0.5);
+    base.copy(P.glow).lerp(new THREE.Color(1, 0.6, 0.28), 0.6);
   }
   return { group, update, applyTheme };
 }
