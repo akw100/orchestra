@@ -292,12 +292,13 @@ const VARIANTS = {
 };
 
 // ---- mix: per-section level, seating (pan), reverb send ----
+// calibrated from measured per-section RMS/peaks: melodies on top, warm bass, percussion tucked in
 const LEVEL = {
-  violin: 1, viola: 0.62, cello: 0.85, contrabass: 0.8, flute: 1, clarinet: 0.75, trumpet: 0.6, horn: 0.55,
-  harp: 0.8, piano: 0.7, glockenspiel: 0.5, timpani: 0.7, choir: 0.6,
-  kick: 0.55, snare: 0.4, hihat: 0.35, toms: 0.45, cymbals: 0.32,
+  violin: 1.5, viola: 0.6, cello: 0.8, contrabass: 0.65, flute: 0.56, clarinet: 0.5, trumpet: 0.6, horn: 0.35,
+  harp: 1, piano: 0.6, glockenspiel: 1, timpani: 0.45, choir: 0.6,
+  kick: 0.38, snare: 0.3, hihat: 0.45, toms: 0.35, cymbals: 0.5,
 };
-const FAMILY_LEVEL = { drums: 0.4 };
+const FAMILY_LEVEL = { drums: 0.35 };
 const PAN = { // concert seating, audience view
   violin: -0.55, viola: 0.15, cello: 0.4, contrabass: 0.62, flute: -0.12, clarinet: 0.12, trumpet: 0.32, horn: -0.3,
   harp: -0.72, piano: -0.4, glockenspiel: 0.5, timpani: 0.05, choir: 0, kick: 0, snare: 0.06, hihat: 0.28, toms: -0.18, cymbals: 0.35,
