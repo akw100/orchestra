@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Director harness</title>
+<style>
+  :root { --bg: #0b0709; --ink: #f3ede4; --muted: #b9ab9c; --line: rgba(255,255,255,.14); --accent: #d6a648; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 13px/1.35 system-ui, sans-serif; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  #ui { position: fixed; left: 12px; top: 12px; max-width: min(560px, calc(100vw - 24px)); display: flex; flex-wrap: wrap; gap: 6px; }
+  #ui .row { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; align-items: center; }
+  #ui b { color: var(--muted); font-weight: 500; min-width: 52px; }
+  button { font: inherit; color: var(--ink); background: rgba(20,14,18,.78); border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.on { background: var(--accent); color: #1a0e07; border-color: var(--accent); }
+  #state { position: fixed; left: 12px; bottom: 12px; white-space: pre; font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--muted); background: rgba(10,6,8,.7); padding: 8px 10px; border-radius: 6px; pointer-events: none; }
+  #clicks { position: fixed; right: 12px; bottom: 12px; font: 12px ui-monospace, Menlo, monospace; color: var(--muted); background: rgba(10,6,8,.7); padding: 6px 9px; border-radius: 6px; pointer-events: none; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div class="row" id="shots"><b>Shot</b></div>
+  <div class="row"><b>Focus</b>
+    <button data-f="violin1">Violin 1</button>
+    <button data-f="cello">Cello</button>
+    <button data-f="tuba">Tuba</button>
+    <button data-f="drums">Drummer</button>
+    <button data-f="winds">Winds section</button>
+    <button data-f="random">Random</button>
+    <button data-f="none">focus(null)</button>
+  </div>
+  <div class="row"><b>Do</b>
+    <button id="tutti">Tutti</button>
+    <button id="user">onUserInput</button>
+    <button id="reset">Reset</button>
+    <button id="play" class="on">Fake beat</button>
+    <button id="rm">Reduced motion</button>
+  </div>
+</div>
+<div id="state"></div>
+<div id="clicks">clicks: 0</div>
+<script type="module">
+import * as THREE from 'three';
+import { createDirector } from '../director.js';
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#0b0709');
+scene.fog = new THREE.Fog('#0b0709', 28, 60);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 200);
+
+scene.add(new THREE.HemisphereLight('#fff1e0', '#241820', 1.1));
+const key = new THREE.DirectionalLight('#ffe2bb', 1.6); key.position.set(4, 12, 9); scene.add(key);
+const rim = new THREE.DirectionalLight('#9fb6ff', 0.5); rim.position.set(-6, 6, -12); scene.add(rim);
+
+const mat = (c, r = 0.8) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
+const box = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); scene.add(o); return o; };
+
+// --- hall placeholder per the contract
+const wood = mat('#5b3520', 0.55);
+box(19.4, 0.2, 12.6, wood, 0, -0.1, -4.9);                 // stage floor, lip around z=0..1.4
+box(19.4, 1.1, 0.2, mat('#2a1610'), 0, -0.55, 1.4);        // stage front face
+const house = new THREE.Mesh(new THREE.PlaneGeometry(26, 19), mat('#1b0f12', 1));
+house.rotation.x = -Math.PI / 2; house.position.set(0, -1.1, 10.9); scene.add(house);
+const velvet = mat('#5a0f1e', 0.95);
+box(26, 13, 0.2, velvet, 0, 5.4, -11.3);                    // back wall
+box(0.2, 13, 12, velvet, -9.8, 5.4, -5.2); box(0.2, 13, 12, velvet, 9.8, 5.4, -5.2); // stage side walls
+box(0.2, 14, 19, mat('#2b141a'), -13, 5.9, 10.9); box(0.2, 14, 19, mat('#2b141a'), 13, 5.9, 10.9); // house walls
+box(26, 14, 0.2, mat('#2b141a'), 0, 5.9, 20.4);             // house back wall
+const gilt = new THREE.MeshStandardMaterial({ color: '#c99a3e', metalness: 0.9, roughness: 0.35 });
+box(0.6, 9.2, 0.6, gilt, -9.7, 4.5, 0.3); box(0.6, 9.2, 0.6, gilt, 9.7, 4.5, 0.3); box(20, 0.7, 0.6, gilt, 0, 9.1, 0.3); // proscenium
+
+const R = (t) => 4.2 + 1.55 * t, MAXA = (t) => 78 - 7 * t, CZ = 1.6;
+for (let t = 1; t <= 4; t++) {
+  const r0 = R(t) - 0.78, r1 = R(t) + 0.77, A = MAXA(t) * Math.PI / 180, seg = 48, s = new THREE.Shape();
+  for (let i = 0; i <= seg; i++) { const a = -A + 2 * A * i / seg; s[i ? 'lineTo' : 'moveTo'](r1 * Math.sin(a), r1 * Math.cos(a)); }
+  for (let i = seg; i >= 0; i--) { const a = -A + 2 * A * i / seg; s.lineTo(r0 * Math.sin(a), r0 * Math.cos(a)); }
+  const g = new THREE.ExtrudeGeometry(s, { depth: 0.32 * t, bevelEnabled: false });
+  g.rotateX(-Math.PI / 2);
+  const m = new THREE.Mesh(g, mat(new THREE.Color('#6b4128').offsetHSL(0, 0, -0.035 * t), 0.6)); m.position.z = CZ; scene.add(m);
+}
+// audience
+const aud = new THREE.InstancedMesh(new THREE.BoxGeometry(0.42, 0.95, 0.42), mat('#2c2128', 1), 600);
+let ai = 0; const tm = new THREE.Matrix4();
+for (let z = 3; z < 19 && ai < 600; z += 1.1) for (let x = -11; x <= 11 && ai < 600; x += 0.62) { if (Math.abs(x) < 0.7) continue; tm.makeTranslation(x, -1.1 + 0.48, z); aud.setMatrixAt(ai++, tm); }
+aud.count = ai; scene.add(aud);
+
+// podium + conductor
+box(1.0, 0.22, 1.0, wood, 0, 0.11, 0.9);
+const cond = new THREE.Group(); cond.position.set(0, 0.22, 0.9); scene.add(cond);
+const condBody = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, 1.35, 16), mat('#141018')); condBody.position.y = 0.68; cond.add(condBody);
+const condHead = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 12), mat('#d9a27c')); condHead.position.y = 1.52; cond.add(condHead);
+const baton = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.45), mat('#ffffff')); baton.position.set(0.3, 1.25, -0.2); baton.rotation.x = 1; cond.add(baton);
+condBody.userData = condHead.userData = { label: 'conductor', section: 'conductor' };
+
+// sections: coloured boxes on the risers (seating zones from the contract)
+const players = [], sections = {};
+function seat(t, deg, section, color, standing = false, label = section) {
+  const a = deg * Math.PI / 180, r = R(t), h = standing ? 1.75 : 1.3;
+  const m = new THREE.Mesh(new THREE.BoxGeometry(0.46, h, 0.46), new THREE.MeshStandardMaterial({ color, roughness: 0.5, emissive: color, emissiveIntensity: 0.08 }));
+  m.position.set(r * Math.sin(a), 0.32 * t + h / 2, CZ - r * Math.cos(a));
+  m.lookAt(0, m.position.y, 0.9);
+  m.userData = { section, label, top: 0.32 * t + h * 0.72 };
+  scene.add(m); players.push(m); (sections[section] ||= []).push(m);
+  return m;
+}
+for (let d = -70; d <= -10; d += 10) seat(0, d, 'violins', '#e0524a', false, 'violin');
+for (let d = -64; d <= -14; d += 10) seat(1, d, 'violins', '#e0524a', false, 'violin');
+for (let d = 10; d <= 70; d += 10) seat(0, d, 'cellos', '#f08a3c', false, 'cello');
+for (let d = 14; d <= 64; d += 10) seat(1, d, 'violas', '#e9a447', false, 'viola');
+for (let d = -28; d <= 28; d += 8) seat(2, d, 'winds', '#4fbf7a', false, 'wind');
+for (let d = -36; d <= 36; d += 8) seat(3, d, 'brass', '#e6c34a', false, d > 28 ? 'tuba' : 'brass');
+for (let d = 22; d <= 34; d += 6) seat(4, d, 'percussion', '#9a6cf0', true, 'percussion');
+for (let d = 39; d <= 49; d += 5) seat(4, d, 'drums', '#e04fb6', false, 'drums');
+for (let d = -48; d <= 10; d += 5) seat(4, d, 'choir', '#4fc6d8', true, 'choir');
+
+let rmOn = new URLSearchParams(location.search).has('rm');
+const ctx = {
+  THREE, scene, camera, renderer, canvas, tok: { theme: 'dark' }, quality: 'high',
+  get reducedMotion() { return rmOn; },               // the director re-reads this every frame
+  addons: (p) => import('three/addons/' + p),
+};
+const dir = createDirector(ctx);
+window.__dir = dir; window.__h = { camera, players, sections, THREE, frame: null };
+
+// UI
+const shotsRow = document.getElementById('shots');
+for (const name of dir.shots) {
+  const b = document.createElement('button'); b.textContent = name; b.onclick = () => dir.shot(name); shotsRow.appendChild(b);
+}
+function targetOf(m, radius = 1.1) {
+  return { position: new THREE.Vector3(m.position.x, m.userData.top, m.position.z), radius, label: m.userData.label };
+}
+function sectionTarget(name) {
+  const list = sections[name], c = new THREE.Vector3();
+  list.forEach((m) => c.add(m.position)); c.divideScalar(list.length);
+  let r = 0; list.forEach((m) => { r = Math.max(r, m.position.distanceTo(c)); });
+  return { position: c, radius: r + 0.8, label: name };
+}
+document.querySelectorAll('[data-f]').forEach((b) => b.onclick = () => {
+  const f = b.dataset.f;
+  if (f === 'none') return dir.focus(null);
+  if (f === 'winds') return dir.focus(sectionTarget('winds'));
+  const pick = f === 'violin1' ? sections.violins[0] : f === 'cello' ? sections.cellos[3] : f === 'tuba' ? players.find((p) => p.userData.label === 'tuba')
+    : f === 'drums' ? sections.drums[1] : players[(Math.random() * players.length) | 0];
+  dir.focus(targetOf(pick));
+});
+document.getElementById('tutti').onclick = () => dir.onTutti();
+document.getElementById('user').onclick = () => dir.onUserInput();
+document.getElementById('reset').onclick = () => dir.reset();
+const playBtn = document.getElementById('play'); let playing = true;
+playBtn.onclick = () => { playing = !playing; playBtn.classList.toggle('on', playing); };
+const rmBtn = document.getElementById('rm'); rmBtn.classList.toggle('on', rmOn);
+rmBtn.onclick = () => { rmOn = !rmOn; rmBtn.classList.toggle('on', rmOn); };
+
+// click-to-focus, mimicking the core: pointerup within 5 px of pointerdown = a click
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+let down = null, clicks = 0;
+canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; });
+canvas.addEventListener('pointerup', (e) => {
+  if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) >= 5) { down = null; return; }
+  down = null; clicks++; document.getElementById('clicks').textContent = 'clicks: ' + clicks;
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects([...players, condBody, condHead], false)[0];
+  if (!hit) return;
+  const m = hit.object;
+  if (m.userData.section === 'conductor') return dir.focus({ position: new THREE.Vector3(0, 1.45, 0.9), radius: 1, label: 'conductor' });
+  dir.focus(e.shiftKey ? sectionTarget(m.userData.section) : targetOf(m));
+});
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+// frame loop with a fake beat
+const clock = new THREE.Clock();
+let t = 0, beat = 0, bpm = 96, last = 0;
+const frame = { t: 0, dt: 0, level: 0, bands: { low: 0, mid: 0, high: 0 }, beat: 0, bpm, playing: 0, total: players.length, tutti: 0, theme: 'dark' };
+const stateEl = document.getElementById('state'); window.__h.frame = frame;
+function loop() {
+  const dt = Math.min(0.1, clock.getDelta());
+  t += dt;
+  if (playing) beat = (beat + dt * bpm / 60) % 16;
+  const pulse = playing ? Math.exp(-(beat % 1) * 5) : 0;
+  frame.t = t; frame.dt = dt; frame.beat = beat;
+  frame.level = playing ? 0.35 + 0.4 * pulse + 0.15 * Math.sin(t * 0.7) : 0;
+  frame.playing = playing ? 24 : 0;
+  for (const p of players) p.material.emissiveIntensity = 0.08 + 0.5 * pulse;
+  dir.update(frame);
+  renderer.render(scene, camera);
+  if (t - last > 0.25) { last = t; stateEl.textContent = JSON.stringify(dir.getState(), null, 0).replace(/,"/g, ',\n"'); }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
