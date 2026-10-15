@@ -45,7 +45,7 @@ const C = {
 };
 
 // ---------- theme (tokens from theme.css; fallbacks until it lands) ----------
-const TH = { light: false, stageBg: '#140b0f', floor: '#5b3520', accent: '#d6b26c', velvet: '#3d0f1c', hueS: '90%', hueL: '72%', lit: 1 };
+const TH = { add: 'lighter', surface: '#170c10', ink: '#f3e9d6', muted: '#bba898', display: 'Georgia, serif', body: 'system-ui, sans-serif', light: false, stageBg: '#140b0f', floor: '#5b3520', accent: '#d6b26c', velvet: '#3d0f1c', hueS: '90%', hueL: '72%', lit: 1 };
 function readTheme() {
   const root = document.documentElement, cs = getComputedStyle(root), v = (n, d) => cs.getPropertyValue(n).trim() || d;
   TH.light = root.dataset.theme === 'light';
@@ -54,7 +54,10 @@ function readTheme() {
   TH.accent = v('--accent', '#d6b26c');
   TH.velvet = v('--velvet', TH.light ? '#8a2434' : '#3d0f1c');
   TH.hueS = v('--hue-s', TH.light ? '70%' : '90%');
-  TH.hueL = v('--hue-l', TH.light ? '42%' : '72%');
+  TH.hueL = TH.light ? v('--hue-l-fill', '42%') : v('--hue-l', '72%');
+  TH.surface = v('--surface', TH.light ? '#fbf5ea' : '#170c10'); TH.ink = v('--ink', TH.light ? '#2a1a14' : '#f3e9d6'); TH.muted = v('--ink-muted', TH.light ? '#6a5446' : '#bba898');
+  TH.display = v('--font-display', 'Georgia, serif'); TH.body = v('--font-body', 'system-ui, sans-serif');
+  TH.add = TH.light ? 'source-over' : 'lighter'; // additive light vanishes on the cream Matinée stage
   TH.lit = TH.light ? 0.5 : 1; // additive light reads weaker in a bright matinee hall
   pals.clear();
   if (W > 2) { renderBg(); renderFg(); }
@@ -92,7 +95,7 @@ const pals = new Map();
 function pal(inst) {
   let p = pals.get(inst.id); if (p) return p;
   const h = inst.hue ?? 30;
-  p = { h, rim: `hsl(${h} 70% 82%)`, bright: `hsl(${h} ${TH.hueS} ${TH.hueL})`, deep: `hsl(${h} 80% 52%)`, glow: glowSprite(h), cone: coneSprite(h, 95, 70) };
+  p = { h, rim: `hsl(${h} 70% 82%)`, bright: `hsl(${h} ${TH.hueS} ${TH.hueL})`, deep: `hsl(${h} 80% 52%)`, glow: TH.light ? glowSprite(h, 80, 50) : glowSprite(h), cone: coneSprite(h, 95, 70) };
   pals.set(inst.id, p); return p;
 }
 
@@ -618,7 +621,7 @@ const POSE_DRAW = {
     arm(-16, sy, -7, hy, -6, L); arm(16, sy, 7, hy, 6, L);
     hand(f, -7, hy, L); hand(f, 7, hy, L);
     if (br > 0.5) {
-      if (f.flash > 0.02) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = f.appear * f.flash * 0.9; g.drawImage(WARM, bx - 30, by - 30, 60, 60); g.globalCompositeOperation = 'source-over'; g.globalAlpha = f.appear; }
+      if (f.flash > 0.02) { g.globalCompositeOperation = TH.add; g.globalAlpha = f.appear * f.flash * 0.9; g.drawImage(WARM, bx - 30, by - 30, 60, 60); g.globalCompositeOperation = 'source-over'; g.globalAlpha = f.appear; }
       g.fillStyle = C.brass[Math.min(10, L + Math.round(f.flash * 3))]; g.beginPath(); g.arc(bx, by, br, 0, TAU); g.fill();
       g.fillStyle = C.copper[Math.max(0, L - 4)]; g.beginPath(); g.arc(bx, by, br * 0.55, 0, TAU); g.fill();
       g.strokeStyle = C.brass[10]; g.globalAlpha = f.appear * (0.3 + f.lit * 0.6); g.lineWidth = 1; g.beginPath(); g.arc(bx, by, br - 0.6, Math.PI * 1.1, Math.PI * 1.7); g.stroke(); g.globalAlpha = f.appear;
@@ -635,7 +638,7 @@ const POSE_DRAW = {
     line(ox + 6, oy - 7, 2, -79 - lift, 1.6, C.brass[L]);
     g.fillStyle = C.brass[Math.min(10, L + Math.round(f.flash * 3))];
     g.beginPath(); g.moveTo(ox - 9 * sc, oy + 3); g.lineTo(ox - 22 * sc, oy - 2 * sc); g.lineTo(ox - 20 * sc, oy + 12 * sc); g.closePath(); g.fill();
-    if (f.flash > 0.02) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = f.appear * f.flash * 0.7; g.drawImage(WARM, ox - 22 * sc - 20, oy - 15, 40, 40); g.globalCompositeOperation = 'source-over'; g.globalAlpha = f.appear; }
+    if (f.flash > 0.02) { g.globalCompositeOperation = TH.add; g.globalAlpha = f.appear * f.flash * 0.7; g.drawImage(WARM, ox - 22 * sc - 20, oy - 15, 40, 40); g.globalCompositeOperation = 'source-over'; g.globalAlpha = f.appear; }
     arm(-16, sy, ox - 18 * sc, oy + 6, -6, L); hand(f, ox - 18 * sc, oy + 6, L);
     arm(16, sy, ox + 5, oy - 4, 6, L); hand(f, ox + 5, oy - 4, L);
   },
@@ -692,7 +695,7 @@ const POSE_DRAW = {
     for (let i = 0; i < 10; i++) {
       const x = -26 + i * 5.8, len = 13 - i * 0.7, a = f.amps[i];
       g.fillStyle = C.silver[L]; g.fillRect(x, -53, 4.4, len * 0.55);
-      if (a > 0.03) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = f.appear * a; g.fillStyle = P_.bright; g.fillRect(x - 0.5, -53.5, 5.4, len * 0.55 + 1); g.drawImage(P_.glow, x - 8, -60, 20, 20); g.globalCompositeOperation = 'source-over'; g.globalAlpha = f.appear; }
+      if (a > 0.03) { g.globalCompositeOperation = TH.add; g.globalAlpha = f.appear * a; g.fillStyle = P_.bright; g.fillRect(x - 0.5, -53.5, 5.4, len * 0.55 + 1); g.drawImage(P_.glow, x - 8, -60, 20, 20); g.globalCompositeOperation = 'source-over'; g.globalAlpha = f.appear; }
     }
     mallets(f, L, r, sy, -54, -12, 12, 18);
   },
@@ -707,7 +710,7 @@ const POSE_DRAW = {
       g.fillStyle = C.vellum[L]; g.beginPath(); g.ellipse(x, y, rx, 4.6, 0, 0, TAU); g.fill();
       g.strokeStyle = C.brass[L]; g.lineWidth = 1.4; g.stroke();
       const hitThis = f.side === (x > 0 ? 1 : 0) ? f.strike : 0;
-      if (hitThis > 0.03) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = f.appear * hitThis; g.drawImage(P_.glow, x - rx * 1.4, y - 10, rx * 2.8, 20); g.globalCompositeOperation = 'source-over'; g.globalAlpha = f.appear; }
+      if (hitThis > 0.03) { g.globalCompositeOperation = TH.add; g.globalAlpha = f.appear * hitThis; g.drawImage(P_.glow, x - rx * 1.4, y - 10, rx * 2.8, 20); g.globalCompositeOperation = 'source-over'; g.globalAlpha = f.appear; }
     }
     mallets(f, L, r, sy, -33, -19, 19, 22);
   },
@@ -720,7 +723,7 @@ const POSE_DRAW = {
     arm(16, sy, 9, fy + 2, 6, L); hand(f, 9, fy + 2, L);
     const my = -83 - lift * 0.6 - 14 + 4;
     g.fillStyle = '#1a0b0b'; g.beginPath(); g.ellipse(0, my, 2.3, 0.8 + f.hit * 2.6 * r, 0, 0, TAU); g.fill();
-    if (f.hit > 0.05) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = f.appear * f.hit * 0.45; g.drawImage(P_.glow, -22, my - 26, 44, 44); g.globalCompositeOperation = 'source-over'; g.globalAlpha = f.appear; }
+    if (f.hit > 0.05) { g.globalCompositeOperation = TH.add; g.globalAlpha = f.appear * f.hit * 0.45; g.drawImage(P_.glow, -22, my - 26, 44, 44); g.globalCompositeOperation = 'source-over'; g.globalAlpha = f.appear; }
   },
   // ---- drum kit pieces (family 'drums'), one player + piece per seat ----
   kick(f, L, r, lift, P_) {
@@ -774,7 +777,7 @@ const POSE_DRAW = {
     line(20, 0, 20, -62, 1.4, C.silver[L]); line(20, -62, 4, -72, 1.4, C.silver[L]);
     const wob = reduced ? 0 : Math.sin(T * 26) * f.strike * 0.3;
     g.save(); g.translate(2, -73); g.rotate(-0.12 + wob);
-    if (f.strike > 0.03 && !TH.light) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = f.appear * f.strike * 0.8; g.drawImage(WARM, -30, -20, 60, 40); g.globalCompositeOperation = 'source-over'; g.globalAlpha = f.appear; }
+    if (f.strike > 0.03 && !TH.light) { g.globalCompositeOperation = TH.add; g.globalAlpha = f.appear * f.strike * 0.8; g.drawImage(WARM, -30, -20, 60, 40); g.globalCompositeOperation = 'source-over'; g.globalAlpha = f.appear; }
     g.fillStyle = C.brass[Math.min(10, L + Math.round(f.strike * 4))]; g.beginPath(); g.ellipse(0, 0, 19, 3.2 + wob * 4, 0, 0, TAU); g.fill();
     g.fillStyle = C.brass[Math.max(0, L - 3)]; g.beginPath(); g.arc(0, -0.5, 2.4, 0, TAU); g.fill();
     g.restore();
@@ -850,7 +853,7 @@ function drawConductor(now, spb) {
   cond.trail[cond.tn * 2] = tx; cond.trail[cond.tn * 2 + 1] = ty; cond.tn = (cond.tn + 1) % 28; cond.tfill = Math.min(28, cond.tfill + 1);
   cond.tx = tx; cond.ty = ty;
   // light pool on the podium
-  g.globalCompositeOperation = 'lighter';
+  g.globalCompositeOperation = TH.add;
   g.globalAlpha = 0.35 + 0.25 * level; g.drawImage(WARM, cond.x - cond.h * 0.6, cond.y - cond.h * 0.12, cond.h * 1.2, cond.h * 0.3);
   g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
   const L = Math.round(10 * clamp(0.45 + 0.35 * house + cond.hov * 0.3 + downFlash * 0.2, 0, 1));
@@ -881,7 +884,7 @@ function drawConductor(now, spb) {
 }
 function drawTrail() {
   if (cond.c < 0.05 || cond.tfill < 3) return;
-  g.globalCompositeOperation = 'lighter'; g.lineCap = 'round';
+  g.globalCompositeOperation = TH.add; g.lineCap = 'round';
   const n = cond.tfill;
   for (let i = 1; i < n; i++) {
     const a = (cond.tn - i + 28) % 28, b = (cond.tn - i - 1 + 28) % 28, t = 1 - i / n;
@@ -895,7 +898,7 @@ function drawTrail() {
 
 // ---------- hall lights ----------
 function drawLights() {
-  g.globalCompositeOperation = 'lighter';
+  g.globalCompositeOperation = TH.add;
   // organ / back-wall breath
   const ga = (0.06 + level * 0.32 + tutti * 0.15) * TH.lit;
   g.globalAlpha = ga; g.drawImage(WARM, CX - W * 0.32, BACKY - H * 0.32, W * 0.64, H * 0.5);
@@ -916,7 +919,7 @@ function drawLights() {
 }
 function drawBeams() {
   if (tutti < 0.02 || !nHues) return;
-  g.globalCompositeOperation = 'lighter';
+  g.globalCompositeOperation = TH.add;
   const n = W < 640 ? 4 : 6;
   for (let i = 0; i < n; i++) {
     const x = SIDE + ((W - SIDE * 2) * (i + 0.5)) / n, ang = (reduced ? 0.25 : Math.sin(T * 0.55 + i * 1.7)) * 0.5 + (i < n / 2 ? 0.12 : -0.12);
@@ -929,7 +932,7 @@ function drawBeams() {
   g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
 }
 function drawChandeliers() {
-  g.globalCompositeOperation = 'lighter';
+  g.globalCompositeOperation = TH.add;
   for (const [x, y, s0] of CHAND) {
     const s = s0 * S, glowA = 0.18 + level * 0.55 + tutti * 0.25 + downFlash * 0.12 * house;
     g.globalAlpha = Math.min(1, glowA); g.drawImage(WARM, x - 110 * s, y - 80 * s, 220 * s, 170 * s);
@@ -952,7 +955,7 @@ function drawChandeliers() {
 }
 function drawOrganShimmer() {
   const a = (0.03 + hi * 0.3 + tutti * 0.1) * TH.lit; if (a < 0.02) return;
-  g.globalCompositeOperation = 'lighter';
+  g.globalCompositeOperation = TH.add;
   const ow = Math.min(W * 0.46, 620 * S), x0 = CX - ow / 2, pos = reduced ? 0.5 : (T * 0.18) % 1.6 - 0.3;
   const gr = g.createLinearGradient(x0 + ow * (pos - 0.2), 0, x0 + ow * (pos + 0.2), 0);
   gr.addColorStop(0, 'rgba(255,214,140,0)'); gr.addColorStop(0.5, `rgba(255,224,160,${a})`); gr.addColorStop(1, 'rgba(255,214,140,0)');
@@ -962,7 +965,7 @@ function drawOrganShimmer() {
 
 // ---------- particles ----------
 function drawParticles(dt, bA, bE, bF) {
-  g.globalCompositeOperation = 'lighter';
+  g.globalCompositeOperation = TH.add;
   g.font = '20px Georgia, "Times New Roman", serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
   for (let i = 0; i < MAXP; i++) {
     const p = P[i]; if (!p.on) continue;
@@ -976,7 +979,7 @@ function drawParticles(dt, bA, bE, bF) {
       g.setTransform(c, s, -s, c, bA * p.x + bE, bA * p.y + bF);
       g.globalAlpha = a * (TH.light ? 0.25 : 0.6); g.drawImage(p.spr, -22, -22, 44, 44);
       g.globalAlpha = a; g.fillStyle = p.col; g.fillText(p.ch, 0, 0);
-      if (TH.light) g.globalCompositeOperation = 'lighter';
+      if (TH.light) g.globalCompositeOperation = TH.add;
     } else if (p.t === STAR) {
       p.vx *= 1 - 2 * dt; p.vy *= 1 - 2 * dt;
       const sz = p.size * (1 - k * 0.6), c = Math.cos(p.rot) * bA, s = Math.sin(p.rot) * bA;
@@ -1011,26 +1014,26 @@ function drawLabel() {
     state = (f.seat.active ? (f.seat.loop ? 'playing · looping' : 'playing once') : f.seat.loop ? 'resting · will loop' : 'resting · plays once');
     x = f.x; y = f.y - f.h * (STANDING[f.pose] ? 1.18 : 1.06) - (f.pose === 'harp' ? f.h * 0.25 : 0); hue = pal(f.inst).h;
   }
-  g.font = `italic ${Math.round(15 * clamp(S, 0.8, 1.1))}px Georgia, serif`;
+  g.font = `italic ${Math.round(15 * clamp(S, 0.8, 1.1))}px ${TH.display}`;
   const tw = g.measureText(title).width;
-  g.font = `600 ${Math.round(10.5 * clamp(S, 0.85, 1.1))}px system-ui, sans-serif`;
+  g.font = `600 ${Math.round(10.5 * clamp(S, 0.85, 1.1))}px ${TH.body}`;
   const sw = g.measureText(state.toUpperCase()).width;
   const w = Math.max(tw, sw) + 22, h = 40 * clamp(S, 0.85, 1.1);
   x = clamp(x, w / 2 + 6, W - w / 2 - 6); y = Math.max(h + 6, y);
-  g.fillStyle = TH.light ? 'rgba(252,246,236,0.94)' : 'rgba(14,10,16,0.88)'; g.strokeStyle = `hsl(${hue} 70% ${TH.light ? 40 : 62}% / 0.7)`; g.lineWidth = 1;
+  g.globalAlpha = 0.92; g.fillStyle = TH.surface; g.strokeStyle = `hsl(${hue} 70% ${TH.light ? 40 : 62}% / 0.7)`; g.lineWidth = 1;
   g.beginPath();
   if (g.roundRect) g.roundRect(x - w / 2, y - h, w, h, 8); else g.rect(x - w / 2, y - h, w, h);
-  g.fill(); g.stroke();
+  g.fill(); g.globalAlpha = 1; g.stroke();
   g.textAlign = 'center'; g.textBaseline = 'alphabetic';
-  g.fillStyle = TH.light ? `hsl(${hue} 70% 30%)` : `hsl(${hue} 85% 80%)`; g.font = `italic ${Math.round(15 * clamp(S, 0.8, 1.1))}px Georgia, serif`; g.fillText(title, x, y - h * 0.52);
-  g.fillStyle = TH.light ? 'rgba(40,24,20,0.7)' : 'rgba(243,237,228,0.7)'; g.font = `600 ${Math.round(10.5 * clamp(S, 0.85, 1.1))}px system-ui, sans-serif`; g.fillText(state.toUpperCase(), x, y - h * 0.18);
+  g.fillStyle = TH.light ? `hsl(${hue} 70% 30%)` : `hsl(${hue} 85% 80%)`; g.font = `italic ${Math.round(15 * clamp(S, 0.8, 1.1))}px ${TH.display}`; g.fillText(title, x, y - h * 0.52);
+  g.fillStyle = TH.muted; g.font = `600 ${Math.round(10.5 * clamp(S, 0.85, 1.1))}px ${TH.body}`; g.fillText(state.toUpperCase(), x, y - h * 0.18);
 }
 function drawHint() {
   if (interacted || activeN) { hintA = Math.max(0, hintA - 0.04); } else hintA = Math.min(1, hintA + 0.02);
   if (hintA < 0.01) return;
   g.globalAlpha = hintA * (0.6 + 0.25 * Math.sin(T * 2.2));
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = `italic ${Math.round(clamp(15 * S, 12, 17))}px Georgia, serif`; g.fillStyle = TH.light ? '#f6eee2' : '#f3ede4';
+  g.font = `italic ${Math.round(clamp(15 * S, 12, 17))}px ${TH.display}`; g.fillStyle = TH.light ? '#f6eee2' : '#f3ede4';
   g.fillText(W < 520 ? 'Tap a musician to bring them in' : 'Click a musician to bring them in · shift-click to play once · click the conductor for everyone', CX, H - 14 * clamp(S, 0.8, 1.2));
   g.globalAlpha = 1;
 }
@@ -1096,7 +1099,7 @@ function frame(now) {
   drawBeams();
   g.drawImage(fg, 0, 0, W, H);
   drawChandeliers();
-  if (loopFlash > 0.02 && house > 0.2) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = loopFlash * 0.25; g.drawImage(WARM, CX - W * 0.6, cond.y - H * 0.9, W * 1.2, H * 1.2); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+  if (loopFlash > 0.02 && house > 0.2) { g.globalCompositeOperation = TH.add; g.globalAlpha = loopFlash * 0.25; g.drawImage(WARM, CX - W * 0.6, cond.y - H * 0.9, W * 1.2, H * 1.2); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
   drawLabel();
   drawHint();
 }
