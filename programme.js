@@ -1,7 +1,7 @@
 // Programme: the repertoire as a printed concert programme, mounted under the masthead (styles in programme.css).
 // Picking a work calls O.setPiece: silent orchestra = it turns now, playing = it turns at the top of the loop.
-// Every entry carries an engraved incipit drawn from the piece's own melody; the one on the stands lights
-// note by note as it plays. On a page turn the masthead title and the timeline chords swap in step.
+// The header carries the opening bar of the work on the stands, engraved from its own melody, lit note by
+// note as it plays. On a page turn the masthead title, the timeline chords and that staff swap in step.
 import * as O from './audio.js';
 import { ACTS, chordName } from './repertoire.js';
 
@@ -58,14 +58,11 @@ function incipit(melody) {
   return `<svg class="pg-inc" viewBox="0 0 ${W} 40" aria-hidden="true">${svg}</svg>`;
 }
 
-// ---------- markup ----------
+// ---------- markup: one line per work, title ...... composer, like the back of a printed programme ----------
 const CHEV = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.2 8 10l4-3.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const work = (p) => `
-  <li><button type="button" class="pg-work" data-id="${p.id}" aria-pressed="false" aria-label="${esc(`${p.title}, ${p.composer}, ${p.year}, ${p.key}`)}">
-    <span class="pg-title">${esc(p.title)}</span>
-    <span class="pg-meta"><span class="pg-by">${esc(p.short)}</span><span class="pg-year">${esc(p.year)}</span><span class="pg-key">${esc(p.key)}</span></span>
-    <span class="pg-next" aria-hidden="true">Next, at the top of the loop</span>
-    ${incipit(p.melody)}
+  <li><button type="button" class="pg-work" data-id="${p.id}" aria-pressed="false" title="${esc(`${p.composer} · ${p.year} · ${p.key}`)}" aria-label="${esc(`${p.title}, ${p.composer}, ${p.year}, ${p.key}`)}">
+    <span class="pg-title">${esc(p.title)}</span><span class="pg-lead" aria-hidden="true"></span><span class="pg-by">${esc(p.short)}</span><span class="pg-next" aria-hidden="true">up next</span>
   </button></li>`;
 
 const root = document.createElement('details');
@@ -76,6 +73,7 @@ root.innerHTML = `
     <h2 class="pg-h" id="pg-h">Programme</h2>
     <span class="pg-hint">Pick a work. A playing orchestra turns the page at the top of the loop.</span>
     <span class="pg-cur"></span>
+    <span class="pg-stand" aria-hidden="true"></span>
     <span class="pg-fold">${CHEV}</span>
   </summary>
   <div class="pg-acts">
@@ -92,6 +90,7 @@ css.addEventListener('error', () => (root.hidden = false));
 $('main > .top').after(root);
 
 const entries = new Map([...root.querySelectorAll('.pg-work')].map((b) => [b.dataset.id, b]));
+const stand = $('.pg-stand', root); // the work on the stands: its opening bar, engraved in the header
 root.addEventListener('click', (e) => {
   const b = e.target.closest('.pg-work');
   if (b) O.setPiece(b.dataset.id);
@@ -106,11 +105,11 @@ function mark(id, next) {
     b.classList.toggle('is-next', k === next);
     b.classList.toggle('is-cur', k === id);
     b.setAttribute('aria-pressed', String(k === id));
-    if (k !== id) b.querySelectorAll('.n').forEach((n) => n.classList.remove('on', 'now'));
   }
   $('.pg-cur', root).innerHTML = `<i>${esc(byId(id).title)}</i>${next ? `<span>then ${esc(byId(next).title)}</span>` : ''}`;
 }
 mark(cur, null);
+stand.innerHTML = incipit(byId(cur).melody);
 
 // swap text in place: the old line blurs away, the new one settles in (the page turning)
 function swap(el, text, delay = 0) {
@@ -140,21 +139,23 @@ addEventListener('orch:song', (e) => {
   swap($('.work > span:first-child'), p.title);
   swap($('.work .by'), p.composer, 60);
   document.querySelectorAll('#timeline .chords span').forEach((s, i) => swap(s, chordName(O.CHORDS[i]), 90 + i * 45));
-  if (!reduce.matches) { // the new incipit plays itself once, a ripple across the staff
-    entries.get(id).querySelectorAll('.n').forEach((n, i) => n.animate(
-      [{ transform: 'translateY(0)' }, { transform: 'translateY(-3px)' }, { transform: 'translateY(0)' }],
-      { duration: 420, delay: 120 + i * 55, easing: EASE_OUT }));
+  stand.innerHTML = incipit(p.melody);
+  if (!reduce.matches) { // the new opening bar writes itself onto the staff, note by note
+    stand.querySelectorAll('.n').forEach((n, i) => n.animate(
+      [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 380, delay: 120 + i * 55, easing: EASE_OUT, fill: 'backwards' }));
   }
 });
 
-// ---------- the incipit on the stands lights note by note ----------
+// ---------- the opening bar on the stand lights note by note as it plays ----------
 let timers = [];
+const dark = () => { stand.classList.remove('is-live'); stand.querySelectorAll('.n').forEach((n) => n.classList.remove('on', 'now')); };
 addEventListener('orch:beat', (e) => {
-  const b = e.detail.beat, inc = entries.get(cur);
+  const b = e.detail.beat;
   timers.forEach(clearTimeout); timers = [];
-  const notes = [...inc.querySelectorAll('.n')];
-  if (!playing()) { notes.forEach((n) => n.classList.remove('on', 'now')); inc.classList.remove('is-live'); return; }
-  inc.classList.add('is-live');
+  if (!playing()) return dark();
+  const notes = [...stand.querySelectorAll('.n')];
+  stand.classList.add('is-live');
   if (b === 0) notes.forEach((n) => n.classList.remove('on', 'now'));
   const spb = 60000 / O.bpm;
   for (const n of notes) {
@@ -166,9 +167,4 @@ addEventListener('orch:beat', (e) => {
     }, at * spb));
   }
 });
-addEventListener('orch:change', () => {
-  if (playing()) return;
-  const inc = entries.get(cur);
-  inc.classList.remove('is-live');
-  inc.querySelectorAll('.n').forEach((n) => n.classList.remove('on', 'now'));
-});
+addEventListener('orch:change', () => { if (!playing()) dark(); });
