@@ -95,7 +95,7 @@ export function makeVelvetTexture(THREE, { w = 512, h = 1024, kind = 'curtain' }
     c.fillStyle = velvet; c.fillRect(0, 0, w, h);
     // pile streaks (vertical), very subtle
     for (let i = 0; i < w; i += 1) {
-      const a = r() * 0.07;
+      const a = r() * 0.035;
       c.fillStyle = r() < 0.5 ? `rgba(0,0,0,${a})` : `rgba(255,255,255,${a * 0.5})`;
       c.fillRect(i, 0, 1, h);
     }

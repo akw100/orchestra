@@ -194,10 +194,10 @@ export function buildHouse(ctx, mats, add) {
       dir.subVectors(aim, a).normalize();
       const q = new THREE.Quaternion().setFromUnitVectors(up, dir);
       const e = new THREE.Euler().setFromQuaternion(q);
-      const back = a.clone().addScaledVector(dir, -0.45);
-      add('dark', place(THREE, new THREE.CylinderGeometry(0.17, 0.22, 0.85, 16), { pos: [back.x, back.y, back.z], rot: [e.x, e.y, e.z] }));
-      add('gold', place(THREE, new THREE.TorusGeometry(0.2, 0.025, 6, 20).rotateX(Math.PI / 2), { pos: [a.x, a.y, a.z], rot: [e.x, e.y, e.z] }));
-      add('dark', place(THREE, new THREE.BoxGeometry(0.06, 0.5, 0.06), { pos: [back.x, back.y - 0.35, back.z] }));
+      const back = a.clone().addScaledVector(dir, -0.32);
+      add('dark', place(THREE, new THREE.CylinderGeometry(0.11, 0.14, 0.6, 14), { pos: [back.x, back.y, back.z], rot: [e.x, e.y, e.z] }));
+      add('gold', place(THREE, new THREE.TorusGeometry(0.13, 0.02, 6, 20).rotateX(Math.PI / 2), { pos: [a.x, a.y, a.z], rot: [e.x, e.y, e.z] }));
+      add('dark', place(THREE, new THREE.BoxGeometry(0.05, 0.4, 0.05), { pos: [back.x, back.y - 0.28, back.z] }));
     }
   }
 
@@ -280,11 +280,11 @@ export function buildHouse(ctx, mats, add) {
   seatMesh.receiveShadow = true;
   group.add(seatMesh);
 
-  const headGeo = place(THREE, new THREE.SphereGeometry(0.105, 12, 9), { pos: [0, 1.18, 0.1], scale: [1, 1.15, 1.08] });
+  const headGeo = place(THREE, new THREE.SphereGeometry(0.105, 9, 6), { pos: [0, 1.18, 0.1], scale: [1, 1.15, 1.08] });
   const bodyGeo = (() => {
-    const a = place(THREE, new THREE.SphereGeometry(0.22, 12, 8), { pos: [0, 0.88, 0.14], scale: [1, 0.5, 0.58] }).toNonIndexed();
-    const b = place(THREE, new THREE.CylinderGeometry(0.17, 0.19, 0.42, 12), { pos: [0, 0.66, 0.15], scale: [1, 1, 0.6] }).toNonIndexed();
-    const c = place(THREE, new THREE.CylinderGeometry(0.045, 0.05, 0.14, 8), { pos: [0, 1.02, 0.12] }).toNonIndexed();
+    const a = place(THREE, new THREE.SphereGeometry(0.22, 9, 5), { pos: [0, 0.88, 0.14], scale: [1, 0.5, 0.58] }).toNonIndexed();
+    const b = place(THREE, new THREE.CylinderGeometry(0.17, 0.19, 0.42, 9, 1, true), { pos: [0, 0.66, 0.15], scale: [1, 1, 0.6] }).toNonIndexed();
+    const c = place(THREE, new THREE.CylinderGeometry(0.045, 0.05, 0.14, 6, 1, true), { pos: [0, 1.02, 0.12] }).toNonIndexed();
     const g = new THREE.BufferGeometry();
     for (const name of ['position', 'normal', 'uv']) {
       const arr = [a, b, c].map((x) => x.attributes[name].array);

@@ -52,10 +52,10 @@ vec3 drape(vec2 st) {
   float y = mix(yC, yO, oc);
   // pleats: constant count in fabric space, so they bunch and deepen as the half gathers
   float pinch = exp(-pow((q - QT) / 0.17, 2.0)) * oc;
-  float amp = mix(0.12, 0.30, oc) * (1.0 + 0.75 * pinch);
+  float amp = mix(0.2, 0.36, oc) * (1.0 + 0.6 * pinch);
   amp *= 0.82 + 0.18 * sin(p * 41.0 + 1.3) + 0.10 * sin(p * 97.0 + q * 0.7);
   amp *= smoothstep(0.0, 0.02, p);
-  float th = p * 6.2831853 * 13.0 + 0.55 * sin(p * 17.0 + q * 2.1) + (1.0 - q) * 0.4 * sin(p * 23.0);
+  float th = p * 6.2831853 * 15.0 + 0.55 * sin(p * 17.0 + q * 2.1) + (1.0 - q) * 0.4 * sin(p * 23.0);
   float f = sin(th) + 0.22 * sin(2.0 * th + 1.1);
   float z = ZC - amp * (0.55 + 0.45 * f);
   d += amp * 0.22 * cos(th);

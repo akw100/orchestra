@@ -159,7 +159,8 @@ export function buildHall(ctx) {
     mats.velvet.color.copy(P.velvet);
     mats.seat.color.copy(P.velvet).multiplyScalar(light ? 1 : 0.75);
     for (const m of [mats.velvet, mats.seat, mats.curtain, mats.valance]) {
-      m.sheenColor.copy(P.velvetHi).lerp(white, light ? 0.35 : 0.18);
+      m.sheenColor.copy(P.velvetHi).lerp(white, light ? 0.12 : 0.04).multiplyScalar(light ? 0.95 : 0.8);
+      m.sheenRoughness = 0.36;
     }
     mats.audienceHead.color.setScalar(light ? 1 : 0.5);
     mats.audienceBody.color.setScalar(light ? 1 : 0.5);

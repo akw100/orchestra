@@ -80,7 +80,7 @@ wash.position.set(0, 13, 6); wash.target.position.set(0, 0.8, -4);
 wash.castShadow = true; wash.shadow.mapSize.set(2048, 2048); wash.shadow.bias = -0.0004;
 scene.add(wash, wash.target);
 const follow = hall.spotAnchors.slice(0, 3).map((a, i) => {
-  const s = new THREE.SpotLight(0xfff2dd, 600, 60, 0.11, 0.5, 1.4);
+  const s = new THREE.SpotLight(0xfff2dd, 320, 60, 0.11, 0.5, 1.4);
   s.position.copy(a);
   s.target.position.set([0, -3.5, 3.5][i], 1.2, [-2, -6, -6][i]);
   scene.add(s, s.target);
@@ -147,6 +147,7 @@ addEventListener('resize', () => {
 
 // test hooks for headless screenshots
 window.__hall = { hall, frame, setCam, setOpen: (o, d) => { open = o; hall.setCurtains(o, d === undefined ? undefined : { duration: d }); }, renderer, scene, camera,
+  look: (p, t) => { camera.position.set(...p); controls.target.set(...t); controls.update(); },
   setTheme: (t) => { document.documentElement.dataset.theme = t; frame.theme = t; hall.applyTheme(readTok()); applyLights(); },
   step: (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) tick(dt); render(); } };
 

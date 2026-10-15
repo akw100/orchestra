@@ -116,9 +116,9 @@ export function buildPlatform(ctx, mats, add) {
     bulbs.instanceMatrix.needsUpdate = true;
   }
   group.add(bulbs);
-  const footLight = new THREE.SpotLight(0xffc68a, 0, 30, 0.95, 0.85, 1.6);
-  footLight.position.set(0, 0.15, 3.5);
-  footLight.target.position.set(0, 3.0, -1.5);
+  const footLight = new THREE.SpotLight(0xffc68a, 0, 34, 1.3, 0.55, 1.5);
+  footLight.position.set(0, 0.2, 3.75);
+  footLight.target.position.set(0, 3.5, 0.4);
   footLight.castShadow = false;
   group.add(footLight, footLight.target);
 
@@ -256,7 +256,7 @@ export function buildPlatform(ctx, mats, add) {
       bulbs.setColorAt(i, col.copy(base).multiplyScalar(k));
     }
     bulbs.instanceColor.needsUpdate = true;
-    footLight.intensity = (theme === 'light' ? 6 : 14) + 60 * (0.4 * lv + 0.6 * (b.low * 0.5 + b.mid * 0.5));
+    footLight.intensity = ((theme === 'light' ? 10 : 34) + 110 * (0.4 * lv + 0.6 * (b.low * 0.5 + b.mid * 0.5))) * state.lift;
     if (mats.pipe.userData.uniforms) {
       mats.pipe.userData.uniforms.uTime.value = t;
       mats.pipe.userData.uniforms.uLevel.value = lv;
