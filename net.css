@@ -1,0 +1,22 @@
+/* Multiplayer bar (net.js) + who-plays-what marks on the strips */
+.mp { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 12px; margin-bottom: 12px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: 14px/1.3 var(--font-body, system-ui); }
+.mp label { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-muted); }
+.mp input[type=text], .mp select, .mp button { font: inherit; color: var(--ink); background: var(--surface-2, transparent);
+  border: 1px solid var(--line); border-radius: 8px; padding: 5px 9px; }
+.mp button { cursor: pointer; }
+.mp input[type=text] { width: 10em; }
+.mp-room { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.mp-room i { width: 9px; height: 9px; border-radius: 50%; background: var(--ink-muted); }
+.mp-room.live i { background: #3fb950; box-shadow: 0 0 0 3px color-mix(in srgb, #3fb950 30%, transparent); }
+.mp-tap { color: var(--accent); font-weight: 600; }
+.mp-qr { display: flex; align-items: center; gap: 12px; flex-basis: 100%; }
+.mp-qr[hidden] { display: none; }
+.mp-qr canvas { border-radius: 8px; }
+.mp-qr a { color: var(--accent); word-break: break-all; }
+
+.strip.mp-mine { box-shadow: inset 0 0 0 2px var(--accent); }
+.strip.mp-mine .strip-name::after, .strip[data-owner] .strip-name::after {
+  display: block; margin-top: 2px; font-size: 12px; color: var(--accent); content: '♪ You'; }
+.strip[data-owner] .strip-name::after { content: '♪ ' attr(data-owner); }
+.strip.mp-taken .seats, .strip.mp-taken .sect { opacity: .55; }
