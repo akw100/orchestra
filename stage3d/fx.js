@@ -76,8 +76,8 @@ void main(){
   if (c.x < 0.0 || c.y < 0.0 || c.x > 1.0 || c.y > 1.0) discard;
   vec4 tx = texture2D(uAtlas, vec2((vCell.x + c.x) * 0.25, 1.0 - (vCell.y + c.y) * 0.5));
   float core = tx.r, glow = tx.g;
-  vec3 hot = mix(vColor, vec3(1.0), 0.3 + 0.45*vHot);
-  vec3 dark = vColor * glow * 0.85 + hot * core * (1.5 + 2.2*vHot);
+  vec3 hot = mix(vColor, vec3(1.0), 0.12 + 0.3*vHot);
+  vec3 dark = vColor * glow * 0.55 + hot * core * (0.95 + 0.9*vHot);
   float ha = glow * 0.5 * (1.0 - core);
   vec3 light = vColor * core + vec3(1.0, 0.97, 0.9) * ha;
   float la = core + ha;
@@ -120,7 +120,7 @@ void main(){
   float rays = exp(-abs(d.x)*26.0)*exp(-d.y*d.y*2.6) + exp(-abs(d.y)*26.0)*exp(-d.x*d.x*2.6);
   float halo = exp(-r2*5.0)*0.25;
   float I = (core*1.4 + rays*0.9*vTw + halo) * (1.0 - r2);
-  vec3 dark = mix(vColor, vec3(1.0), core*0.7) * I * 2.6;
+  vec3 dark = mix(vColor, vec3(1.0), core*0.45) * I * 1.9;
   float la = clamp(core*1.1 + rays*0.75 + halo*0.6, 0.0, 1.0);
   vec3 light = mix(vColor, vec3(1.0, 0.96, 0.85), core*0.6) * la;
   gl_FragColor = vec4(mix(light, dark, uAdd) * vAlpha, mix(la, 0.0, uAdd) * vAlpha);
@@ -241,16 +241,16 @@ void main(){
     float age = uTime - uP[i].x;
     if (age < 0.0 || age > 2.4) continue;
     float r = age * uP[i].z, w = 0.28 + age*0.55, f = 1.0 - age/2.4;
-    float dd = d + (n - 0.5)*0.5;
+    float dd = d + (n - 0.5)*0.22;
     I += (exp(-pow((dd - r)/w, 2.0)) + 0.35*exp(-pow((dd - r*0.6)/(w*0.6), 2.0))) * f*f * uP[i].y;
-    I += exp(-d*d*0.9) * exp(-age*4.0) * uP[i].y * 0.7;
+    I += exp(-d*d*2.5) * exp(-age*4.0) * uP[i].y * 0.5;
   }
   float onStage = smoothstep(9.6, 8.6, abs(vW.x)) * smoothstep(-11.0, -10.0, vW.z) * smoothstep(0.1, -0.2, vW.z);
   float apron = 1.0 - smoothstep(0.8, 1.4, length(vW.xz - uOrigin.xz));
-  I *= max(onStage, apron) * (0.8 + 0.4*n);
+  I *= max(onStage, apron) * (0.85 + 0.3*n);
   if (I < 0.002) discard;
-  vec3 dark = uColor * I * 0.9;
-  float la = clamp(I*0.45, 0.0, 0.7);
+  vec3 dark = uColor * I * 0.5;
+  float la = clamp(I*0.4, 0.0, 0.6);
   gl_FragColor = vec4(mix(uColor*la, dark, uAdd), mix(la, 0.0, uAdd));
 }`;
 
@@ -401,7 +401,7 @@ function buildAtlas(THREE) {
     g.font = `${px}px ${stack}`;
     let mm = g.measureText(ch);
     let h = mm.actualBoundingBoxAscent + mm.actualBoundingBoxDescent, w = mm.actualBoundingBoxLeft + mm.actualBoundingBoxRight;
-    const fit = Math.min((cell * 0.66) / Math.max(h, 1), (cell * 0.66) / Math.max(w, 1));
+    const fit = Math.min((cell * 0.7) / Math.max(h, 1), (cell * 0.7) / Math.max(w, 1));
     px = Math.max(20, Math.min(110, px * fit));
     g.font = `${px}px ${stack}`;
     mm = g.measureText(ch);
@@ -682,9 +682,9 @@ export function createFX(ctx) {
     const speed = P(o, 'speed', 1.3 + vel * 1.4) * (reduced ? 0.4 : 1), spread = P(o, 'spread', 0.08);
     for (let k = 0; k < n; k++) {
       const u = Math.random() * 2 - 1, a = Math.random() * Math.PI * 2, r = Math.sqrt(1 - u * u), s = speed * rnd(0.35, 1);
-      tmpC2.copy(tmpC).lerp(th.dark ? th.cream : th.gold, Math.random() * 0.5);
+      tmpC2.copy(tmpC).lerp(th.dark ? th.cream : th.gold, Math.random() * 0.3);
       spark(pos.x + rnd(-spread, spread), pos.y + rnd(-spread, spread), pos.z + rnd(-spread, spread),
-        r * Math.cos(a) * s, Math.abs(u) * s * 0.8 + 0.5, r * Math.sin(a) * s, rnd(0.8, 1.8), rnd(0.55, 1.1), rnd(0.06, 0.12) * (0.8 + vel * 0.4), tmpC2);
+        r * Math.cos(a) * s, Math.abs(u) * s * 0.8 + 0.5, r * Math.sin(a) * s, rnd(0.8, 1.8), rnd(0.6, 1.2), rnd(0.11, 0.2) * (0.8 + vel * 0.4), tmpC2);
     }
   }
 
@@ -723,7 +723,7 @@ export function createFX(ctx) {
       const s = rStart.array; s[i * 3] = x; s[i * 3 + 1] = y; s[i * 3 + 2] = z;
       const m = rMisc.array; m[i * 4] = t - Math.random() * 0.03; m[i * 4 + 1] = (y - land) / speed + rnd(0.8, 1.6); m[i * 4 + 2] = land; m[i * 4 + 3] = Math.random();
       const sh = rShape.array, leaf = Math.random() < 0.3;
-      sh[i * 4] = leaf ? rnd(0.06, 0.09) : rnd(0.035, 0.055); sh[i * 4 + 1] = leaf ? rnd(0.06, 0.09) : rnd(0.07, 0.11);
+      sh[i * 4] = leaf ? rnd(0.1, 0.14) : rnd(0.06, 0.09); sh[i * 4 + 1] = leaf ? rnd(0.1, 0.14) : rnd(0.11, 0.17);
       sh[i * 4 + 2] = rnd(3, 9) * (Math.random() < 0.5 ? -1 : 1); sh[i * 4 + 3] = speed;
       const pc = rainPal[Math.random() < 0.08 ? 5 : (Math.random() * 5) | 0];
       const c = rCol.array; c[i * 3] = pc.r; c[i * 3 + 1] = pc.g; c[i * 3 + 2] = pc.b;
