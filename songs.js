@@ -130,7 +130,8 @@ root.innerHTML = `
       </div>
       <div class="sb-type">
         <div class="sb-chords" aria-hidden="true"></div>
-        <div class="sb-text"><span class="sb-hint-type">Type a sentence. Every letter lands on the chord the orchestra is playing.</span></div>
+        <div class="sb-text"><div class="sb-line"></div></div>
+        <p class="sb-tw-meta"></p>
       </div>
     </div>
     <div class="sb-kbd" aria-hidden="true"></div>
@@ -234,7 +235,7 @@ function layout(jump) {
   const n = s.notes[pos];
   if (n && !finished) { const k = keyEl(n.code); k?.classList.add('is-want'); if (n.shift) k?.classList.add('is-shift'); }
 }
-addEventListener('resize', () => open && layout(true));
+addEventListener('resize', () => { if (open) { layout(true); twCaret(true); } });
 
 // ---------- playing ----------
 function sound(midi, beats = 1, vel = 0.85) { if (inst) O.strike(inst, midi, beats, vel); }
@@ -368,31 +369,71 @@ function typeChar(ch) {
   let midi = pool[twCursor];
   if (/[.!?]/.test(ch)) { midi = pool[0]; sound(root < 45 ? root + 12 : root, 2, 0.7); }
   else if (/[A-Z]/.test(ch)) midi += 12;
-  sound(midi, vowel ? 1 : 0.5, vowel ? 0.95 : 0.6);
-  glyph(ch, tones.indexOf(midi % 12), midi);
+  const ok = ch === twLine()[twAt];
+  sound(midi, vowel ? 1 : 0.5, !ok ? 0.3 : vowel ? 0.95 : 0.6);
+  hit(ok, tones.indexOf(midi % 12), midi);
   tickChords(i);
 }
 function typeSpace() {
   const { i, root } = chordNow();
   sound(root < 45 ? root + 12 : root, 1, 0.45);
-  glyph(' ', -1, 60); tickChords(i);
+  hit(twLine()[twAt] === ' ', -1, 72); tickChords(i);
 }
 function typeEnter() {
   const { i, tones } = chordNow();
   let base = 62; while (base % 12 !== tones[0]) base++;
   [0, (tones[1] - tones[0] + 12) % 12, (tones[2] - tones[0] + 12) % 12, 12].forEach((x, j) => setTimeout(() => sound(base + x, 2, 0.7), j * 70));
-  glyph('↵', 0, 74); tickChords(i);
+  tickChords(i);
   const r = $('.sb-text').getBoundingClientRect(); spark(r.right - 24, r.top + r.height / 2, 24, 1);
 }
-function glyph(ch, role, midi) {
-  const t = $('.sb-text'); t.querySelector('.sb-hint-type')?.remove();
-  const g = document.createElement('span');
-  g.className = 'sb-g' + (role === 0 ? ' is-root' : role === 1 ? ' is-third' : role === 2 ? ' is-fifth' : '');
-  g.textContent = ch === ' ' ? ' ' : ch;
+
+// monkeytype-style: a line to copy; typed letters take their pitch and chord colour, misses go red
+const LINES = [
+  'the violins rise and the whole hall holds its breath.',
+  'every letter you type lands on the chord the orchestra is playing.',
+  'pachelbel wrote this canon more than three hundred years ago.',
+  'a quick brown fox jumps over the lazy conductor.',
+  'the cellos hum below while the flutes dance on top.',
+  'play it slowly, then play it again a little faster.',
+  'the timpani wait all night for a single loud moment.',
+  'when the music stops, the audience is still listening.',
+];
+let twIdx = -1, twAt = 0, twMiss = 0, twT0 = 0;
+const twLine = () => LINES[twIdx];
+const twChars = () => $('.sb-line').children;
+function twLoad(msg = 'Type the line. Every letter lands on the chord the orchestra is playing.') {
+  twIdx = (twIdx + 1) % LINES.length; twAt = 0; twMiss = 0; twT0 = 0;
+  $('.sb-line').innerHTML = [...twLine()].map((c) => `<span class="sb-g">${c === ' ' ? '&nbsp;' : c}</span>`).join('');
+  $('.sb-tw-meta').innerHTML = `${msg} <span><kbd>Enter</kbd> skip</span>`;
+  twCaret(true);
+}
+function twCaret(jump) {
+  const t = $('.sb-text'), line = $('.sb-line'), c = twChars()[twAt];
+  line.querySelector('.is-at')?.classList.remove('is-at');
+  c?.classList.add('is-at');
+  // ponytail: one line that slides left once the caret passes 40%, no word wrap; fine for one-sentence lines
+  const x = Math.min(0, t.clientWidth * 0.4 - (c ? c.offsetLeft : line.offsetWidth));
+  t.classList.toggle('is-scrolled', x < 0);
+  line.style.transition = jump ? 'none' : '';
+  line.style.transform = `translateX(${x}px)`;
+}
+function hit(ok, role, midi) {
+  const g = twChars()[twAt]; if (!g) return;
+  if (!twT0) twT0 = performance.now();
+  if (!ok) twMiss++;
+  g.className = 'sb-g is-typed' + (!ok ? ' is-bad' : role === 0 ? ' is-root' : role === 1 ? ' is-third' : role === 2 ? ' is-fifth' : '');
   g.style.setProperty('--y', `${Math.max(-1.1, Math.min(1.1, (midi - 72) / 11))}`);
-  t.append(g);
-  while (t.children.length > 80) t.firstElementChild.remove();
-  if (ch !== ' ') { const r = g.getBoundingClientRect(); spark(r.left + r.width / 2, r.top + r.height / 2, 5, 0.5); }
+  if (ok && twLine()[twAt] !== ' ') { const r = g.getBoundingClientRect(); spark(r.left + r.width / 2, r.top + r.height / 2, 5, 0.5); }
+  if (++twAt < twChars().length) return twCaret();
+  const n = twChars().length, min = (performance.now() - twT0) / 60000;
+  typeEnter();
+  twLoad(`<b>${Math.round(n / 5 / Math.max(min, 1 / 60))} wpm</b> · ${Math.round(100 * Math.max(0, n - twMiss) / n)}% accuracy. Next:`);
+}
+function twBack() {
+  if (!twAt) return;
+  const g = twChars()[--twAt];
+  g.className = 'sb-g'; g.style.removeProperty('--y');
+  twCaret();
 }
 function tickChords(i = chordNow().i) {
   $('.sb-chords').querySelectorAll('span').forEach((s) => s.classList.toggle('is-on', +s.dataset.i === i));
@@ -402,7 +443,7 @@ function setTypewriter(on) {
   root.classList.toggle('is-type', on);
   root.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', (b.dataset.mode === 'type') === on));
   clearInterval(twTimer);
-  if (on) { stopDemo(); twTimer = setInterval(() => open && tickChords(), 120); tickChords(); }
+  if (on) { stopDemo(); twTimer = setInterval(() => open && tickChords(), 120); tickChords(); twCaret(true); }
 }
 root.querySelector('.sb-modes').addEventListener('click', (e) => { const b = e.target.closest('[data-mode]'); if (b) setTypewriter(b.dataset.mode === 'type'); });
 
@@ -518,8 +559,8 @@ export function onPlayKey(e, isDown) {
   if (code === 'Backslash') { setTypewriter(!typewriter); return done(); }
   if (typewriter) {
     if (e.repeat) return done();
-    if (code === 'Enter' || code === 'NumpadEnter') { typeEnter(); return done(); }
-    if (code === 'Backspace') { $('.sb-text .sb-g:last-child')?.remove(); return done(); }
+    if (code === 'Enter' || code === 'NumpadEnter') { typeEnter(); twLoad(); return done(); }
+    if (code === 'Backspace') { twBack(); return done(); }
     if (code === 'Space') { typeSpace(); return done(); }
     if (e.key && e.key.length === 1) { typeChar(e.key); return done(); }
     return false;
@@ -548,4 +589,4 @@ if (!hasKeysJs()) {
   addEventListener('keyup', (e) => { if (open && !typing(e) && !hasKeysJs()) onPlayKey(e, false); });
 }
 
-pickSong(-1); setTypewriter(false); renderInsts();
+pickSong(-1); twLoad(); setTypewriter(false); renderInsts();
