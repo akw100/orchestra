@@ -31,8 +31,8 @@ const wrapPi = (a) => { a = (a + PI) % (2 * PI); if (a < 0) a += 2 * PI; return 
 // Framings. tx/ty/tz = look-at, w/h = half-width/half-height (m) that must stay in frame,
 // fov = base vertical fov (deg), dmin/dmax clamp the fitted distance.
 const SHOT_DEFS = {
-  overview:   { tx: 0,   ty: 1.0,  tz: -4.3, yaw: 0,     pitch: 0.21, w: 10.2, h: 4.4, fov: 38, dmin: 12,  dmax: 30 },
-  strings:    { tx: 0,   ty: 0.95, tz: -2.1, yaw: 0.22,  pitch: 0.34, w: 6.3,  h: 2.4, fov: 36, dmin: 7.5, dmax: 20 },
+  overview:   { tx: 0,   ty: 1.0,  tz: -4.3, yaw: 0,     pitch: 0.21, w: 10.2, h: 5.4, fov: 38, dmin: 12,  dmax: 30 },
+  strings:    { tx: 0,   ty: 0.95, tz: -2.1, yaw: 0.22,  pitch: 0.34, w: 6.3,  h: 2.9, fov: 36, dmin: 7.5, dmax: 20 },
   winds:      { tx: 0,   ty: 1.4,  tz: -5.7, yaw: -0.2,  pitch: 0.47, w: 4.8,  h: 1.9, fov: 34, dmin: 8.5, dmax: 17 },
   brass:      { tx: 0,   ty: 1.75, tz: -7.3, yaw: 0.24,  pitch: 0.53, w: 5.6,  h: 2.1, fov: 34, dmin: 9.5, dmax: 18 },
   percussion: { tx: 5.2, ty: 2.0,  tz: -7.3, yaw: -0.48, pitch: 0.44, w: 4.0,  h: 1.8, fov: 34, dmin: 8.5, dmax: 15 },
@@ -44,7 +44,7 @@ const SHOT_DEFS = {
   tuttiTrack: { tx: 0,   ty: 1.3,  tz: -4.5, yaw: 0.42,  pitch: 0.27, w: 7.2,  h: 3.2, fov: 37, dmin: 9.5, dmax: 22 },
   lowLeft:    { tx: 0,   ty: 1.3,  tz: -4.8, yaw: -0.62, pitch: 0.11, w: 7,    h: 3,   fov: 34, dmin: 10,  dmax: 20 },
   lowRight:   { tx: 0,   ty: 1.3,  tz: -4.8, yaw: 0.62,  pitch: 0.11, w: 7,    h: 3,   fov: 34, dmin: 10,  dmax: 20 },
-  birdseye:   { tx: 0,   ty: 0.6,  tz: -5.0, yaw: 0.12,  pitch: 0.86, w: 9.5,  h: 5.5, fov: 40, dmin: 12,  dmax: 14 },
+  birdseye:   { tx: 0,   ty: 0.6,  tz: -5.0, yaw: 0.12,  pitch: 0.80, w: 9.5,  h: 5.5, fov: 40, dmin: 12,  dmax: 13 },
   podium:     { tx: 0,   ty: 1.35, tz: -1.4, yaw: 0.07,  pitch: 0.16, w: 3.6,  h: 1.6, fov: 35, dmin: 6,   dmax: 9 },
 };
 const SHOT_NAMES = ['overview', 'strings', 'winds', 'brass', 'percussion', 'drums', 'conductor', 'audience'];
@@ -59,7 +59,13 @@ const DRAG_PX = 5;          // the core treats < 5 px as a click: never consume 
 export function createDirector(ctx) {
   const { THREE, camera } = ctx;
   const canvas = ctx.canvas || null;
-  const B = Object.assign({ houseX: 12.5, stageX: 9.0, zMin: -10.3, zMax: 19, yMax: 12, houseFloor: -1.1 }, ctx.bounds || null);
+  // houseRake: the house floor may rise toward the back (m per m past rakeZ0); prosc*: the proscenium
+  // wall slab the camera may only pass through its opening. Defaults are conservative for any hall.
+  const B = Object.assign({
+    houseX: 12.5, stageX: 9.0, zMin: -10.3, zMax: 19, yMax: 12, houseFloor: -1.1, houseRake: 0.18, rakeZ0: 4.75,
+    proscZ0: 2.0, proscZ1: 3.05, proscHalfW: 9.8, proscTop: 7.3,
+  }, ctx.bounds || null);
+  const houseMinY = (z) => B.houseFloor + 1.6 + B.houseRake * Math.max(0, z - B.rakeZ0); // seated heads + margin
 
   // ---------- rigs ----------
   const newRig = () => ({ tx: 0, ty: 0, tz: 0, yaw: 0, pitch: 0, dist: 10, fov: 38 });
@@ -104,7 +110,7 @@ export function createDirector(ctx) {
     openRig.tx = 0; openRig.ty = 0.7; openRig.tz = -3.2; openRig.yaw = -0.12; openRig.fov = fovFor(29);
     const zStart = Math.min(B.zMax - 0.4, 18.5);
     openRig.dist = (zStart - openRig.tz) / Math.cos(openRig.yaw);
-    openRig.pitch = Math.asin(clamp((B.houseFloor + 2.35 - openRig.ty) / openRig.dist, -0.2, 0.2));
+    openRig.pitch = Math.asin(clamp((houseMinY(zStart) + 0.35 - openRig.ty) / openRig.dist, -0.2, 0.35));
   }
   function relayout() {
     for (const k in SHOT_DEFS) layoutShot(rigs[k], SHOT_DEFS[k]);
@@ -113,15 +119,15 @@ export function createDirector(ctx) {
 
   // ---------- program: a short list of moves/holds, then a follow-up ----------
   const steps = [];
-  for (let i = 0; i < 8; i++) steps.push({ kind: 0, rig: null, dur: 0, ease: inOutCubic, pitchDelay: 0, bump: 1 });
+  for (let i = 0; i < 8; i++) steps.push({ kind: 0, rig: null, dur: 0, ease: inOutCubic, pitchDelay: 0, bump: 1, lift: 0 });
   let nSteps = 0, stepIdx = 0, stepT0 = 0, programName = '', programThen = 'idle', programAt = -99;
   let mode = 'idle';          // 'idle' | 'program' | 'user'
   let idleSince = 0, tourIdx = 0, lastTuttiAt = -99, snap = true, started = false;
   let shotName = 'overview';
 
   function begin(name, then) { nSteps = 0; programName = name; programThen = then; }
-  function addMove(rig, dur, ease = inOutCubic, pitchDelay = 0, bump = 1) {
-    const s = steps[nSteps++]; s.kind = MOVE; s.rig = rig; s.dur = dur; s.ease = ease; s.pitchDelay = pitchDelay; s.bump = bump;
+  function addMove(rig, dur, ease = inOutCubic, pitchDelay = 0, bump = 1, lift = 0) {
+    const s = steps[nSteps++]; s.kind = MOVE; s.rig = rig; s.dur = dur; s.ease = ease; s.pitchDelay = pitchDelay; s.bump = bump; s.lift = lift;
   }
   function addHold(dur) {
     const s = steps[nSteps++]; s.kind = HOLD; s.rig = nSteps > 1 ? steps[nSteps - 2].rig : cur; s.dur = dur;
@@ -160,6 +166,7 @@ export function createDirector(ctx) {
     // swinging far around (house side <-> stage side): crane up over the players on the way
     const swing = clamp((Math.abs(dyaw) - 1) / 1.4, 0, 1);
     if (swing > 0) cur.pitch += swing * 0.55 * Math.sin(PI * e);
+    if (s.lift) cur.pitch += s.lift * Math.sin(PI * pe);
     // dolly out a little while arcing, then push back in: reads as one continuous crane/arc
     const dx = to.tx - from.tx, dz = to.tz - from.tz;
     const bump = s.bump * clamp(0.1 * Math.sqrt(dx * dx + dz * dz) + 0.22 * Math.abs(dyaw) * Math.min(from.dist, to.dist), 0, 4);
@@ -320,7 +327,12 @@ export function createDirector(ctx) {
     if (p.z < B.zMin) p.z = B.zMin;
     const hx = p.z < 0.4 ? B.stageX : B.houseX;
     p.x = clamp(p.x, -hx, hx);
-    let minY = p.z > 0.3 ? B.houseFloor + 1.7 : 0.45;
+    let minY = p.z > 0.3 ? houseMinY(p.z) : 0.45;
+    // the proscenium wall: only through its opening
+    if (p.z > B.proscZ0 && p.z < B.proscZ1) {
+      p.x = clamp(p.x, -B.proscHalfW, B.proscHalfW);
+      if (p.y > B.proscTop) p.y = B.proscTop;
+    }
     // over the risers: stay clear of the players' heads (continuous, so no pops)
     const rz = p.z - 1.6, r = Math.sqrt(p.x * p.x + rz * rz);
     if (p.z < 1.2 && r > 3.3 && r < 11.4) {
@@ -343,7 +355,7 @@ export function createDirector(ctx) {
     if (rm) { copyRig(cur, rigs.overview); snap = true; mode = 'idle'; idleSince = now; return; }
     begin('opening', 'idle');
     // glide in over the audience, crane up late, the long lens opening out to the overview
-    addMove(rigs.overview, 6.6, inOutSine, 0.22, 0);
+    addMove(rigs.overview, 7.2, inOutSine, 0.06, 0, 0.3);
     run();
     snap = true;
   }
