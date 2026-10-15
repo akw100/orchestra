@@ -1,6 +1,6 @@
 // Multiplayer: everyone who opens the same ?room= link shares one orchestra.
 // Peer to peer over WebRTC (Trystero). Public Nostr relays only carry the few-second handshake: no server of ours.
-// Every browser plays the full mix itself, so only seat state (active / loop / count) and tempo travel.
+// Every browser plays the full mix itself, so only seat state (active / loop / count), tempo and the piece travel.
 // Each person can claim one instrument; a claimed instrument only follows its claimant.
 import * as O from './audio.js';
 import { joinRoom, selfId } from 'https://cdn.jsdelivr.net/npm/trystero@0.26.0/+esm';
@@ -12,6 +12,7 @@ const inviteUrl = `${location.origin}${location.pathname}?room=${roomId}`;
 const room = joinRoom({ appId: 'akw100-pocket-orchestra' }, roomId);
 const seatMsg = room.makeAction('seats');
 const tempoMsg = room.makeAction('tempo');
+const pieceMsg = room.makeAction('piece');
 const whoMsg = room.makeAction('who');
 
 const store = (k, v) => { try { return v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v); } catch { return null; } };
@@ -19,6 +20,7 @@ const me = { name: store('orch-name') || '', inst: null };
 const peers = {}; // peerId -> { name, inst }
 const known = {}; // inst -> { snap, at }: the state the room agreed on; at = 0 means untouched
 let tempo = { bpm: O.bpm, at: 0 }; // last writer wins, so a newcomer's default tempo never overrides the room
+let piece = { id: O.piece.id, at: 0 }; // the work on the stands, same rule
 let applying = false;
 
 const seatsOf = (inst) => O.seats.filter((s) => s.inst === inst);
@@ -69,6 +71,13 @@ addEventListener('orch:tempo', (e) => {
   tempoMsg.send(tempo);
 });
 
+// a local pick (queued, cancelled or turned) differs from the agreed piece; applying a remote one doesn't, so no echo
+addEventListener('orch:song', (e) => {
+  if (e.detail?.id === piece.id) return;
+  piece = { id: e.detail.id, at: nextAt(piece.at) };
+  pieceMsg.send(piece);
+});
+
 // ---------- room -> local (peers can send anything: validate every field) ----------
 seatMsg.onMessage = (d, { peerId }) => {
   const inst = d?.inst, at = Number(d?.at);
@@ -87,6 +96,12 @@ tempoMsg.onMessage = (d) => {
   const hud = document.querySelector('.k-bpm b'); // ponytail: keys.js only refreshes on slider input; firing one would echo
   if (hud) hud.textContent = bpm;
 };
+pieceMsg.onMessage = (d) => {
+  const at = Number(d?.at);
+  if (!O.PIECES.some((p) => p.id === d?.id) || !(at > piece.at)) return;
+  piece = { id: d.id, at };
+  O.setPiece(d.id);
+};
 whoMsg.onMessage = (d, { peerId }) => {
   const inst = Object.hasOwn(O.byId, d?.inst) ? d.inst : null;
   peers[peerId] = { name: String(d?.name ?? '').slice(0, 20), inst };
@@ -97,6 +112,7 @@ room.onPeerJoin = (id) => {
   whoMsg.send(me, { target: id });
   for (const [inst, k] of Object.entries(known)) if (k.at) seatMsg.send({ inst, ...k }, { target: id });
   if (tempo.at) tempoMsg.send(tempo, { target: id });
+  if (piece.at) pieceMsg.send(piece, { target: id });
   render();
 };
 room.onPeerLeave = (id) => { delete peers[id]; render(); };

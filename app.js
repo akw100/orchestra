@@ -1,6 +1,7 @@
 // Console UI: transport, loop timeline and per-section channel strips.
 // The DOM is built once and diffed in place on orch:change, so animations survive updates.
 import * as O from './audio.js';
+import './programme.js'; // the repertoire picker mounts itself under the masthead
 
 const $ = (s, el = document) => el.querySelector(s);
 const reduce = matchMedia('(prefers-reduced-motion: reduce)');

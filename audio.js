@@ -3,6 +3,8 @@
 //   orch:note   {seat, inst, midi, vel, dur}   fired when the note actually sounds
 //   orch:beat   {beat, bar}                    every beat (16 beats per loop)
 //   orch:change {}                             any seat started/stopped/added/removed
+//   orch:song   {id, next?}                    the orchestra turned the page (next: queued for the top of the loop)
+import { PIECES } from './repertoire.js';
 
 export const ctx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -225,40 +227,57 @@ export const VOICES = {
   },
 };
 
-// ---- the piece: Pachelbel's Canon progression in D, 16 beats / 4 bars ----
+// ---- the piece: data from repertoire.js, 16 beats / 4 bars, chords every 2 beats ----
 export const LOOP_BEATS = 16;
-export const CHORDS = [[50, 'M'], [45, 'M'], [47, 'm'], [42, 'm'], [43, 'M'], [38, 'M'], [43, 'M'], [45, 'M']]; // bass midi, 2 beats each
+export let CHORDS, piece; // live bindings: reassigned when the orchestra turns the page (always at the top of the loop)
+export { PIECES };
 const triad = (r, q) => [r, r + (q === 'M' ? 4 : 3), r + 7];
 const into = (m, lo) => { while (m < lo) m += 12; while (m >= lo + 12) m -= 12; return m; };
-const per = (fn) => CHORDS.flatMap(([r, q], i) => fn(r, q, i * 2, i)); // fn returns [[beat, midi, dur, vel?]...]
 const split = (...parts) => ({ parts }); // one part per copy: copy k plays parts[k % n]
 
-const CANON_8THS = [74, 73, 74, 62, 61, 69, 64, 66, 62, 74, 73, 71, 73, 78, 81, 83, 79, 78, 76, 79, 78, 76, 74, 73, 71, 69, 67, 66, 64, 67, 66, 64];
-const TOP = [78, 76, 74, 73, 71, 69, 71, 73];
-const SECOND = [74, 73, 71, 69, 67, 66, 67, 69];
-// voice-led inner lines (thirds / fifths of each chord, moving by step)
-const INNER_HI = [66, 64, 66, 66, 67, 66, 67, 69];
-const INNER_LO = [62, 61, 62, 61, 62, 62, 59, 61];
-const CLOSE = [[57, 62, 66], [57, 61, 64], [59, 62, 66], [57, 61, 66], [59, 62, 67], [57, 62, 66], [59, 62, 67], [61, 64, 69]];
+// voice leading for pieces without hand-voiced lines: each chord takes the chord tone nearest the previous note
+const pcs = ([r, q]) => triad(r, q).map((m) => m % 12);
+function line(chords, start, lo, hi) {
+  let prev = start;
+  return chords.map((c) => {
+    let best = lo;
+    for (let m = lo; m <= hi; m++) if (pcs(c).includes(m % 12) && Math.abs(m - prev) < Math.abs(best - prev)) best = m;
+    return (prev = best);
+  });
+}
+const below = (m, c) => { do m--; while (!pcs(c).includes(m % 12)); return m; }; // next chord tone down
+function voice(chords) {
+  const top = line(chords, 78, 74, 84), innerHi = line(chords, 66, 63, 70), hi = line(chords, 66, 64, 71);
+  return {
+    top, second: top.map((m, i) => below(m, chords[i])),
+    innerHi, innerLo: innerHi.map((m, i) => below(m, chords[i])),
+    close: hi.map((m, i) => { const b = below(m, chords[i]); return [below(b, chords[i]), b, m]; }),
+  };
+}
 
-const PARTS = {
-  violin: CANON_8THS.map((m, i) => [i / 2, m, 0.5]),
-  viola: per((r, q, b) => { const [a, c, e] = triad(into(r, 55), q); return [[b, a, 0.5], [b + 0.5, c, 0.5], [b + 1, e, 0.5], [b + 1.5, c, 0.5]]; }),
-  cello: per((r, q, b) => [[b, r, 2]]),
-  contrabass: per((r, q, b) => [[b, r - 12, 0.92, 1], [b + 1, r - 12, 0.92, 0.8]]),
-  flute: TOP.map((m, i) => [i * 2, m, 2]),
-  clarinet: SECOND.map((m, i) => [i * 2, m - 12, 2]),
-  trumpet: per((r, q, b, i) => i % 2 ? [] : [[b, into(r, 60), 1.2], [b + 1.5, into(r + 7, 60), 0.4], [b + 2, into(r + 7, 60), 1.5]]),
-  horn: split(INNER_HI.map((m, i) => [i * 2, m, 1.9, 0.85]), INNER_LO.map((m, i) => [i * 2, m, 1.9, 0.8])),
-  harp: per((r, q, b) => { const [a, c, e] = triad(into(r, 50), q); return [[b, a, 1.5], [b + 0.5, e, 1.5], [b + 1, a + 12, 1.5], [b + 1.5, c + 12, 1.5]]; }),
-  piano: per((r, q, b) => triad(into(r, 60), q).flatMap((m) => [[b, m, 1.4, 0.9], [b + 1, m, 0.9, 0.6]])),
-  glockenspiel: TOP.map((m, i) => [i * 2 + 1, m + 12, 0.5, 0.7]),
-  timpani: [...per((r, q, b, i) => i % 2 ? [] : [[b, into(r, 38), 1]]), ...[15, 15.25, 15.5, 15.75].map((b, i) => [b, 45, 0.25, 0.3 + i * 0.12])],
-  choir: split(
-    CLOSE.flatMap((ch, i) => ch.map((m) => [i * 2, m, 1.95, 0.75])),
-    per((r, q, b) => [[b, into(r, 41), 1.95, 0.75], [b, into(r + 7, 49), 1.95, 0.6]]),
-  ),
-};
+// every built-in section's part, arranged from the piece's chords + melody (+ hand-voiced lines if it has them)
+function arrange(p) {
+  const L = { ...voice(p.chords), ...p.lines }, last = p.chords[p.chords.length - 1][0];
+  const per = (fn) => p.chords.flatMap(([r, q], i) => fn(r, q, i * 2, i)); // fn returns [[beat, midi, dur, vel?]...]
+  return {
+    violin: p.melody,
+    viola: per((r, q, b) => { const [a, c, e] = triad(into(r, 55), q); return [[b, a, 0.5], [b + 0.5, c, 0.5], [b + 1, e, 0.5], [b + 1.5, c, 0.5]]; }),
+    cello: per((r, q, b) => [[b, r, 2]]),
+    contrabass: per((r, q, b) => [[b, r - 12, 0.92, 1], [b + 1, r - 12, 0.92, 0.8]]),
+    flute: L.top.map((m, i) => [i * 2, m, 2]),
+    clarinet: L.second.map((m, i) => [i * 2, m - 12, 2]),
+    trumpet: per((r, q, b, i) => i % 2 ? [] : [[b, into(r, 60), 1.2], [b + 1.5, into(r + 7, 60), 0.4], [b + 2, into(r + 7, 60), 1.5]]),
+    horn: split(L.innerHi.map((m, i) => [i * 2, m, 1.9, 0.85]), L.innerLo.map((m, i) => [i * 2, m, 1.9, 0.8])),
+    harp: per((r, q, b) => { const [a, c, e] = triad(into(r, 50), q); return [[b, a, 1.5], [b + 0.5, e, 1.5], [b + 1, a + 12, 1.5], [b + 1.5, c + 12, 1.5]]; }),
+    piano: per((r, q, b) => triad(into(r, 60), q).flatMap((m) => [[b, m, 1.4, 0.9], [b + 1, m, 0.9, 0.6]])),
+    glockenspiel: L.top.map((m, i) => [i * 2 + 1, m + 12, 0.5, 0.7]),
+    timpani: [...per((r, q, b, i) => i % 2 ? [] : [[b, into(r, 38), 1]]), ...[15, 15.25, 15.5, 15.75].map((b, i) => [b, into(last, 38), 0.25, 0.3 + i * 0.12])],
+    choir: split(
+      L.close.flatMap((ch, i) => ch.map((m) => [i * 2, m, 1.95, 0.75])),
+      per((r, q, b) => [[b, into(r, 41), 1.95, 0.75], [b, into(r + 7, 49), 1.95, 0.6]]),
+    ),
+  };
+}
 
 // kind decides what extra copies of a section play: harmony, octaves, then unison
 export const INSTRUMENTS = [
@@ -329,7 +348,13 @@ const compile = (notes) => {
   notes.forEach(([b, m, d, v = 1]) => map[Math.round(b * 4) % STEPS].push([m, d, v]));
   return map;
 };
-const NOTES = Object.fromEntries(Object.entries(PARTS).map(([id, p]) => [id, (p.parts || [p]).map(compile)])); // id -> one part per copy (cycled)
+const NOTES = {}; // id -> one part per copy (cycled)
+// recompile only the built-in sections; plugin parts (the drum kit) stay as registered
+function load(p) {
+  piece = p; CHORDS = p.chords;
+  for (const [id, part] of Object.entries(arrange(p))) NOTES[id] = (part.parts || [part]).map(compile);
+}
+load(PIECES[0]);
 
 export function addSeat(instId) {
   const inst = byId[instId], k = seats.filter((s) => s.inst === instId).length;
@@ -362,6 +387,7 @@ export const setBpm = (b) => (bpm = b);
 let step = 0, nextTime = 0, running = false;
 
 function scheduleStep(s, t) {
+  if (next && s % STEPS === 0) turn(next, t);
   const spb = 60 / bpm;
   if (s % 4 === 0) { const beat = (s / 4) % LOOP_BEATS; later(t, () => emit('orch:beat', { beat, bar: Math.floor(beat / 4) })); }
   for (const seat of seats) {
@@ -387,6 +413,20 @@ setInterval(() => {
 function ensureRunning() {
   if (ctx.state !== 'running') ctx.resume();
   if (!running) { running = true; step = 0; nextTime = ctx.currentTime + 0.06; }
+}
+
+// ---- repertoire: a new piece takes over at the top of the loop, so every player keeps their place ----
+let next = null;
+export function setPiece(id) {
+  const p = PIECES.find((x) => x.id === id);
+  if (!p || (p === piece && !next)) return;
+  if (!seats.some((s) => s.active)) return turn(p); // nobody playing: turn the page now
+  next = p === piece ? null : p; // picking the current piece again cancels the queued one
+  emit('orch:song', { id: (next || piece).id, next: !!next });
+}
+function turn(p, t = ctx.currentTime) {
+  next = null; load(p); bpm = p.bpm;
+  later(t, () => { emit('orch:tempo', { bpm: p.bpm, from: 'song' }); emit('orch:song', { id: p.id }); });
 }
 
 // ---- transport API ----

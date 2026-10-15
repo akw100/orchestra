@@ -123,7 +123,7 @@ root.innerHTML = `
           <div class="sb-prog"><i></i></div>
           <div class="sb-strike"></div>
           <div class="sb-track"></div>
-          <p class="sb-free">Free play. Every key is in D major, so anything you type fits the Canon. Pick a song to follow along.</p>
+          <p class="sb-free">Free play. Every key is in D major, so anything you type fits every piece on the programme. Pick a song to follow along.</p>
           <div class="sb-count" aria-hidden="true"></div>
           <div class="sb-bravo" role="status"></div>
         </div>
@@ -162,8 +162,10 @@ kbd.addEventListener('pointerdown', (e) => {
 const keyEl = (code) => kbd.querySelector(`[data-code="${code}"]`);
 
 // chord ribbon for the typewriter
-const CHORD_NAMES = O.CHORDS.map(([m, q]) => nameOf(m) + (q === 'm' ? 'm' : ''));
-$('.sb-chords').innerHTML = CHORD_NAMES.map((n, i) => `<span data-i="${i}">${n}</span>`).join('');
+// (O.CHORDS is live: it changes when the orchestra turns to another piece)
+const renderChords = () => ($('.sb-chords').innerHTML = O.CHORDS.map(([m, q], i) => `<span data-i="${i}">${nameOf(m)}${q === 'm' ? 'm' : ''}</span>`).join(''));
+renderChords();
+addEventListener('orch:song', (e) => e.detail?.next || renderChords());
 
 // ---------- instruments ----------
 function renderInsts() {
@@ -318,6 +320,7 @@ $('.sb-again').addEventListener('click', () => { stopDemo(); restart(); });
 // gentle backing for songs that fit the Canon; stop puts those sections back exactly as they were
 function startBacking() {
   const s = song(); if (backing || !s?.backing) return;
+  O.setPiece('canon'); // the backing follows the Canon's chords
   backing = s.backing.filter((id) => O.byId[id]).map((id) => ({ id, prev: O.seats.filter((x) => x.inst === id).map((x) => [x, x.active, x.loop]) }));
   backing.forEach((b) => O.section(b.id, 'solo'));
 }
