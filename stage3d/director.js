@@ -91,19 +91,20 @@ export function createDirector(ctx) {
     r.dist = fitDist(d.w, d.h, r.fov, d.dmin, d.dmax);
   }
   function layoutFocus() {
-    const p = focusPos, r = clamp(focusRadius || 1.4, 0.35, 12);
+    const p = focusPos, r = clamp(focusRadius || 2.2, 2.2, 12); // a lone player still gets some context
     const depth = clamp(-p.z, 0, 11);
     focusRig.tx = p.x * 0.94;                 // nudged toward the podium so the conductor stays in play
     focusRig.ty = p.y + 0.05;
     focusRig.tz = lerp(p.z, 0.9, 0.06);
-    if (p.z > 1.6) { // something in the house: look back at it from the stage
+    if (p.z > 3.5) { // something in the house: look back at it from the stage
       focusRig.yaw = wrapPi(PI + Math.atan2(0.4 * p.x, 9)); focusRig.pitch = 0.3;
     } else {
       focusRig.yaw = Math.atan2(-0.72 * p.x, 9 + 0.3 * depth);
       focusRig.pitch = 0.19 + 0.032 * depth + (r > 3 ? 0.05 : 0);
     }
     focusRig.fov = fovFor(r > 3 ? 36 : 34);
-    focusRig.dist = fitDist(r * 1.45, r * 1.0, focusRig.fov, r > 3 ? 7 : 4.6, 26);
+    // sections are wide, shallow arcs: frame their width generously, their height less so
+    focusRig.dist = fitDist(r * 1.15 + 0.6, Math.min(r, 1.6 + 0.3 * r) + 0.4, focusRig.fov, r > 3 ? 8 : 6, 26);
   }
   function layoutOpening() {
     // back of the house, just above the audience's heads, long lens
@@ -384,11 +385,7 @@ export function createDirector(ctx) {
     if (dt > 0.1) dt = 0.1;
     now += dt;
     rm = !!ctx.reducedMotion;
-    if (Math.abs(camera.aspect - aspect) > 0.004) {
-      aspect = camera.aspect > 0 ? camera.aspect : 1.6;
-      narrow = clamp((1.45 - aspect) / 0.8, 0, 1);
-      relayout();
-    }
+    syncAspect();
     if (!started) { started = true; startOpening(); }
 
     const level = clamp(+frame.level || 0, 0, 1);
@@ -479,9 +476,28 @@ export function createDirector(ctx) {
     }
   }
 
-  function focus(target) {
+  // API calls can arrive before the first frame (a restored selection, say): no opening then,
+  // start from the overview so the requested move has somewhere sensible to come from
+  function syncAspect() {
+    if (Math.abs(camera.aspect - aspect) > 0.004 || aspect === 0) {
+      aspect = camera.aspect > 0 ? camera.aspect : 1.6;
+      narrow = clamp((1.45 - aspect) / 0.8, 0, 1);
+      relayout();
+    }
+  }
+  function apiEnter() {
     rm = !!ctx.reducedMotion;
-    if (!target || !target.position) { if (mode !== 'user') goOverview(3.2); return; }
+    syncAspect();
+    if (!started) { started = true; copyRig(cur, rigs.overview); snap = true; mode = 'idle'; idleSince = now; }
+  }
+
+  function focus(target) {
+    if (!target || !target.position) {
+      // selection cleared: leave a focus/shot hold early; never cut short the opening or the user's view
+      if (started && mode === 'program' && programName === 'focus') goOverview(3.2);
+      return;
+    }
+    apiEnter();
     if (dragging || pinching) return; // the user is mid-gesture: leave the camera in their hands
     const p = target.position, label = target.label ? String(target.label) : '';
     if (/conduct/i.test(label) || (Math.abs(p.x) < 0.8 && Math.abs(p.z - 0.9) < 0.8)) { shot('conductor', { hold: FOCUS_HOLD }); focusLabel = label || 'conductor'; return; }
@@ -500,7 +516,7 @@ export function createDirector(ctx) {
   }
 
   function shot(name, opts) {
-    rm = !!ctx.reducedMotion;
+    apiEnter();
     const key = SHOT_NAMES.includes(name) ? name : 'overview';
     if (key === 'overview') { goOverview(rm ? 0 : clamp(moveDur(rigs.overview), 2.2, 3.6)); return; }
     const hold = opts && opts.hold != null ? +opts.hold : SHOT_HOLD;
@@ -512,7 +528,7 @@ export function createDirector(ctx) {
   }
 
   function onTutti() {
-    rm = !!ctx.reducedMotion;
+    apiEnter();
     if (mode === 'user' && (dragging || pinching)) return;
     if (programName === 'tutti' && mode === 'program') return;
     if (now - lastTuttiAt < 6) return;
@@ -528,7 +544,7 @@ export function createDirector(ctx) {
   }
 
   function reset() {
-    rm = !!ctx.reducedMotion;
+    apiEnter();
     lastResetAt = now; velYaw = velPitch = 0; dragging = pinching = false; userUntil = 0;
     if (mode === 'user') mode = 'idle';
     goOverview(rm ? 0 : 2.6);
