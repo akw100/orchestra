@@ -185,7 +185,11 @@ export function createDirector(ctx) {
     }
     userUntil = now + USER_HOLD;
   }
-  function onUserInput() {
+  function onUserInput(info) {
+    // drags and wheel on our canvas are handled by our own listeners (which know whether the
+    // wheel is zooming or the page is scrolling): don't freeze the camera for those twice
+    const type = info && info.type;
+    if (canvas && (type === 'wheel' || type === 'drag')) return;
     // a focus()/shot() issued by the same gesture wins over the freeze
     if (mode === 'program' && now - programAt < 0.35) { engagedUntil = now + USER_HOLD; return; }
     enterUser();
@@ -199,9 +203,8 @@ export function createDirector(ctx) {
     const s = ptr[0].id === -1 ? ptr[0] : ptr[1].id === -1 ? ptr[1] : null;
     if (!s) return;
     s.id = e.pointerId; s.x = s.sx = e.clientX; s.y = s.sy = e.clientY; s.ts = e.timeStamp;
-    engagedUntil = now + USER_HOLD;
     if (activeCount() === 2) {
-      enterUser(); pinching = true; dragging = false;
+      enterUser(); pinching = true; dragging = false; engagedUntil = now + USER_HOLD;
       pinchD0 = Math.max(10, Math.hypot(ptr[0].x - ptr[1].x, ptr[0].y - ptr[1].y)); pinchDist0 = userRig.dist;
     }
   }
@@ -220,6 +223,7 @@ export function createDirector(ctx) {
     if (!dragging) {
       if (Math.hypot(e.clientX - s.sx, e.clientY - s.sy) < DRAG_PX) return;
       dragging = true; enterUser(); velYaw = velPitch = 0; lastMoveTs = e.timeStamp;
+      engagedUntil = now + USER_HOLD; // after a drag the wheel zooms instead of scrolling the page
       try { canvas.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
     }
     s.x = e.clientX; s.y = e.clientY;
@@ -258,7 +262,7 @@ export function createDirector(ctx) {
     // zoom only when the camera is "engaged" so the page can still scroll past the stage
     const doc = document.documentElement;
     const pageScrolls = doc.scrollHeight > window.innerHeight + 2;
-    if (!(e.ctrlKey || theaterOn || !pageScrolls || now < engagedUntil || mode === 'user')) return;
+    if (!(e.ctrlKey || e.metaKey || theaterOn || !pageScrolls || now < engagedUntil)) return;
     e.preventDefault();
     let dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
     if (e.ctrlKey) dy *= 4; // trackpad pinch arrives as small ctrl+wheel deltas
@@ -396,8 +400,8 @@ export function createDirector(ctx) {
     } else if (mode === 'program') {
       const s = steps[stepIdx];
       if (s.kind === MOVE) {
-        const p = (now - stepT0) / s.dur;
-        if (p >= 1) { copyRig(cur, s.rig); next(); } else interp(p, s);
+        const p = rm ? 1 : (now - stepT0) / s.dur; // reduced motion switched on mid-move: cut
+        if (p >= 1) { copyRig(cur, s.rig); if (rm) snap = true; next(); } else interp(p, s);
       } else {
         copyRig(cur, s.rig);
         if (now - stepT0 >= s.dur) next();
@@ -413,7 +417,7 @@ export function createDirector(ctx) {
     const dTarget = rm || mode === 'user' ? 0
       : mode === 'idle' ? 1
       : programName === 'focus' || programName === 'shot' ? 0.5 : 0.35;
-    driftAmt += (dTarget - driftAmt) * (1 - Math.exp(-dt * 0.7));
+    driftAmt = rm ? 0 : driftAmt + (dTarget - driftAmt) * (1 - Math.exp(-dt * 0.7));
     if (driftAmt > 0.001) {
       const k = driftAmt, t = now;
       goal.yaw += k * (0.048 * Math.sin(t * 0.163) + 0.016 * Math.sin(t * 0.41 + 1.3));
@@ -464,6 +468,7 @@ export function createDirector(ctx) {
   }
 
   function focus(target) {
+    rm = !!ctx.reducedMotion;
     if (!target || !target.position) { if (mode !== 'user') goOverview(3.2); return; }
     if (dragging || pinching) return; // the user is mid-gesture: leave the camera in their hands
     const p = target.position, label = target.label ? String(target.label) : '';
@@ -483,6 +488,7 @@ export function createDirector(ctx) {
   }
 
   function shot(name, opts) {
+    rm = !!ctx.reducedMotion;
     const key = SHOT_NAMES.includes(name) ? name : 'overview';
     if (key === 'overview') { goOverview(rm ? 0 : clamp(moveDur(rigs.overview), 2.2, 3.6)); return; }
     const hold = opts && opts.hold != null ? +opts.hold : SHOT_HOLD;
@@ -494,6 +500,7 @@ export function createDirector(ctx) {
   }
 
   function onTutti() {
+    rm = !!ctx.reducedMotion;
     if (mode === 'user' && (dragging || pinching)) return;
     if (programName === 'tutti' && mode === 'program') return;
     if (now - lastTuttiAt < 6) return;
@@ -509,6 +516,7 @@ export function createDirector(ctx) {
   }
 
   function reset() {
+    rm = !!ctx.reducedMotion;
     lastResetAt = now; velYaw = velPitch = 0; dragging = pinching = false; userUntil = 0;
     if (mode === 'user') mode = 'idle';
     goOverview(rm ? 0 : 2.6);
