@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Musicians harness</title>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<style>
+  :root { color-scheme: dark; --bg: #0d0709; --ink: #f3e9d6; --accent: #d6b26c; }
+  :root[data-theme="light"] { color-scheme: light; --bg: #f4ecdc; --ink: #2a1a12; --accent: #805a1a; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 13px/1.3 system-ui, sans-serif; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  .bar { position: fixed; left: 12px; top: 12px; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100vw - 24px); }
+  .bar button { font: inherit; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--bg) 80%, transparent); color: var(--ink); cursor: pointer; }
+  .bar button[aria-pressed="true"] { background: var(--accent); color: var(--bg); }
+  #stat { position: fixed; right: 12px; top: 12px; font-variant-numeric: tabular-nums; opacity: .8; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <button id="play" aria-pressed="false">Play all</button>
+  <button id="notes" aria-pressed="true">Fake notes</button>
+  <button id="theme">Theme</button>
+  <button id="sel">Select next</button>
+  <button id="arc" aria-pressed="false">Orchestra arc</button>
+  <button id="stress" aria-pressed="false">x2 seats</button>
+  <button id="burst">Note burst</button>
+</div>
+<div id="stat"></div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { createMusician, createConductor } from '../musicians.js';
+
+const INSTRUMENTS = [
+  { id: 'violin', name: 'Violin', family: 'strings', hue: 18 }, { id: 'viola', name: 'Viola', family: 'strings', hue: 32 },
+  { id: 'cello', name: 'Cello', family: 'strings', hue: 8 }, { id: 'contrabass', name: 'Contrabass', family: 'strings', hue: 350 },
+  { id: 'flute', name: 'Flute', family: 'woodwinds', hue: 150 }, { id: 'clarinet', name: 'Clarinet', family: 'woodwinds', hue: 170 },
+  { id: 'trumpet', name: 'Trumpet', family: 'brass', hue: 45 }, { id: 'horn', name: 'French horn', family: 'brass', hue: 38 },
+  { id: 'harp', name: 'Harp', family: 'strings', hue: 280 }, { id: 'piano', name: 'Piano', family: 'keys', hue: 220 },
+  { id: 'glockenspiel', name: 'Glockenspiel', family: 'percussion', hue: 195 }, { id: 'timpani', name: 'Timpani', family: 'percussion', hue: 0 },
+  { id: 'choir', name: 'Choir', family: 'voices', hue: 300 },
+  { id: 'kick', name: 'Kick', family: 'drums', hue: 340 }, { id: 'snare', name: 'Snare', family: 'drums', hue: 205 }, { id: 'hihat', name: 'Hi-hat', family: 'drums', hue: 90 },
+  { id: 'toms', name: 'Toms', family: 'drums', hue: 20 }, { id: 'cymbals', name: 'Cymbals', family: 'drums', hue: 55 }, { id: 'claps', name: 'Claps', family: 'drums', hue: 312 },
+  { id: 'theremin', name: 'Unknown (brass fallback)', family: 'brass', hue: 120 },
+];
+const TOK = {
+  dark: { theme: 'dark', bg: '#0d0709', accent: '#d6b26c', accentHi: '#f2d99c', velvet: '#6a0f22', stageBg: '#0a0609', stageFloor: '#3b2415', hueS: '72%', hueL: '70%', hueLFill: '52%', glow: '#ffc468' },
+  light: { theme: 'light', bg: '#f4ecdc', accent: '#805a1a', accentHi: '#c99a3e', velvet: '#8c1d2e', stageBg: '#e8d9bd', stageFloor: '#a4703f', hueS: '66%', hueL: '24%', hueLFill: '42%', glow: '#d69628' },
+};
+const q = new URLSearchParams(location.search);
+let theme = q.get('theme') === 'light' ? 'light' : 'dark';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: q.has('shot') });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.05, 200);
+camera.position.set(0, 4.2, 13);
+const controls = new OrbitControls(camera, renderer.domElement); controls.target.set(0, 0.9, -1.2); controls.enableDamping = true;
+const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.35;
+const hemi = new THREE.HemisphereLight(0xfff1dc, 0x3b2415, 0.6); scene.add(hemi);
+const key = new THREE.SpotLight(0xffe2b8, 220, 40, 0.6, 0.5, 1.6); key.position.set(3, 11, 9); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0004;
+key.target.position.set(0, 0, -1.5); scene.add(key, key.target);
+const rim = new THREE.DirectionalLight(0x9fb6ff, 1.2); rim.position.set(-6, 5, -10); scene.add(rim);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(16, 64).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x3b2415, roughness: 0.55 }));
+floor.receiveShadow = true; scene.add(floor);
+
+const ctx = { THREE, scene, camera, renderer, canvas: renderer.domElement, tok: TOK[theme], reducedMotion: false, quality: 'high', addons: (p) => import('three/addons/' + p) };
+const list = []; let nextId = 1;
+function addSeat(inst, k) {
+  const seat = { id: nextId++, inst: inst.id, k, active: false };
+  const m = createMusician(ctx, { seat, inst });
+  scene.add(m.object3d); m.applyTheme(TOK[theme]);
+  list.push({ seat, inst, m });
+}
+INSTRUMENTS.forEach((inst) => addSeat(inst, 0));
+const conductor = createConductor(ctx); scene.add(conductor.object3d);
+const tip = new THREE.Mesh(new THREE.SphereGeometry(0.02), new THREE.MeshBasicMaterial({ color: 0xff3366 })); scene.add(tip); tip.visible = q.has('tip');
+
+let arc = q.has('arc');
+function layout() {
+  const n = list.length;
+  list.forEach((r, i) => {
+    const o = r.m.object3d;
+    if (arc) {
+      const row = Math.floor(i / 8), j = i % 8, cnt = Math.min(8, n - row * 8), R = 4.2 + row * 1.55, a = ((j - (cnt - 1) / 2) / Math.max(1, cnt - 1)) * 1.9;
+      o.position.set(R * Math.sin(a), 0.32 * row, 1.6 - R * Math.cos(a));
+      o.rotation.y = Math.atan2(0 - o.position.x, 0.9 - o.position.z);
+    } else {
+      const perRow = 7, row = Math.floor(i / perRow), j = i % perRow;
+      o.position.set((j - (perRow - 1) / 2) * 2.2, 0, -row * 2.9); o.rotation.y = 0;
+    }
+  });
+  conductor.object3d.position.set(0, 0.22, arc ? 0.9 : 3.2); conductor.object3d.rotation.y = Math.PI;
+}
+layout();
+
+// ---- fake music ----
+const RANGE = { violin: [67, 84], viola: [55, 72], cello: [43, 60], contrabass: [31, 45], flute: [74, 91], clarinet: [58, 79], trumpet: [62, 77], horn: [50, 67], harp: [38, 86], piano: [36, 84], glockenspiel: [72, 96], timpani: [40, 52], choir: [57, 76] };
+const DRUM = { kick: [36], snare: [38, 38, 38], hihat: [42, 42, 46, 44], toms: [41, 45, 48, 50], cymbals: [49, 51, 51, 53], claps: [39] };
+function fire(r, vel = 0.4 + Math.random() * 0.6) {
+  const id = r.inst.id, R = RANGE[id] || [55, 72], d = DRUM[id];
+  const midi = d ? d[Math.floor(Math.random() * d.length)] : Math.round(R[0] + Math.random() * (R[1] - R[0]));
+  r.m.onNote({ seat: r.seat.id, inst: id, midi, vel, dur: 0.15 + Math.random() * 0.8 });
+  if (id === 'piano' && Math.random() < 0.7) r.m.onNote({ seat: r.seat.id, inst: id, midi: midi - 12 - Math.round(Math.random() * 7), vel, dur: 0.6 });
+}
+let playing = q.has('play'), notes = true, selI = -1, bpm = 84, beatF = 0, lastStep = -1, lastBeat = -1;
+const $ = (s) => document.querySelector(s);
+function setPlay(on) { playing = on; $('#play').setAttribute('aria-pressed', on); list.forEach((r) => { r.seat.active = on; r.m.setActive(on); }); }
+function setTheme(t) {
+  theme = t; document.documentElement.dataset.theme = t; const tok = TOK[t]; ctx.tok = tok;
+  scene.background = new THREE.Color(tok.stageBg); floor.material.color.set(tok.stageFloor);
+  hemi.intensity = t === 'light' ? 1.4 : 0.45; key.intensity = t === 'light' ? 160 : 260; renderer.toneMappingExposure = t === 'light' ? 1.0 : 1.1;
+  scene.fog = new THREE.Fog(tok.stageBg, 18, 40);
+  list.forEach((r) => r.m.applyTheme(tok)); conductor.applyTheme(tok);
+}
+setTheme(theme); setPlay(playing);
+$('#play').onclick = () => setPlay(!playing);
+$('#notes').onclick = () => { notes = !notes; $('#notes').setAttribute('aria-pressed', notes); };
+$('#theme').onclick = () => setTheme(theme === 'dark' ? 'light' : 'dark');
+$('#sel').onclick = () => { if (selI >= 0) list[selI].m.setSelected(0); selI = (selI + 1) % (list.length + 1); if (selI === list.length) selI = -1; else list[selI].m.setSelected(2); };
+$('#arc').onclick = () => { arc = !arc; $('#arc').setAttribute('aria-pressed', arc); layout(); };
+$('#stress').onclick = () => { const n = list.length; INSTRUMENTS.forEach((inst) => addSeat(inst, 1)); list.slice(n).forEach((r) => { r.seat.active = playing; r.m.setActive(playing); }); layout(); $('#stress').setAttribute('aria-pressed', true); };
+$('#burst').onclick = () => list.forEach((r) => fire(r, 1));
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+const frame = { t: 0, dt: 0, level: 0, bands: { low: 0, mid: 0, high: 0 }, beat: 0, bpm, playing: 0, total: 0, tutti: 0, theme };
+let last = performance.now(), fpsN = 0, fpsT = 0, fps = 0, errors = [];
+addEventListener('error', (e) => errors.push(String(e.message)));
+function tick(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  frame.t += dt; frame.dt = dt; frame.bpm = bpm; frame.theme = theme;
+  beatF = (beatF + (dt * bpm) / 60) % 16; frame.beat = beatF;
+  const act = list.filter((r) => r.seat.active).length;
+  frame.playing = act; frame.total = list.length; frame.tutti = act / list.length; frame.level = playing ? 0.5 + 0.3 * Math.sin(frame.t * 2) : 0;
+  const b = Math.floor(beatF); if (b !== lastBeat) { lastBeat = b; conductor.onBeat({ beat: b, bar: Math.floor(b / 4) }); }
+  const step = Math.floor(beatF * 2); // 8th notes
+  if (step !== lastStep) {
+    lastStep = step;
+    if (notes) list.forEach((r) => { if (r.seat.active && Math.random() < (r.inst.family === 'drums' ? 0.75 : 0.45)) fire(r); });
+  }
+  for (const r of list) r.m.update(frame);
+  conductor.update(frame);
+  if (tip.visible) conductor.batonTip.getWorldPosition(tip.position);
+  controls.update(); renderer.render(scene, camera);
+  fpsN++; fpsT += dt; if (fpsT > 0.5) { fps = fpsN / fpsT; fpsN = 0; fpsT = 0; $('#stat').textContent = `${fps.toFixed(0)} fps · ${list.length} seats · ${renderer.info.render.calls} calls · ${renderer.info.render.triangles} tris`; }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+window.__h = { list, conductor, setPlay, setTheme, fire, scene, camera, controls, renderer, frame, errors, get fps() { return fps; }, layout, setArc: (v) => { arc = v; layout(); } };
+</script>
+</body>
+</html>
