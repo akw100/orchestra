@@ -4,23 +4,58 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pocket Orchestra</title>
+  <meta name="description" content="A browser orchestra playing Pachelbel's Canon in D. Start any player, any time; everyone stays in time.">
+  <meta name="theme-color" content="#0d0709">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..800;1,6..96,400..800&family=Jost:wght@400..600&display=swap">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="stage.css">
 </head>
 <body>
   <main>
     <header class="top">
-      <h1>Pocket Orchestra</h1>
-      <p class="sub">Pachelbel's Canon in D. Every player stays in time — start anyone, anytime.</p>
-      <div class="transport">
-        <button id="tutti" class="primary">▶ Tutti</button>
-        <button id="stop">■ Stop all</button>
-        <label>Tempo <input id="bpm" type="range" min="50" max="140" value="84"> <span id="bpmv">84</span></label>
-        <span id="beat" class="beat">—</span>
+      <div class="masthead">
+        <h1>Pocket <em>Orchestra</em></h1>
+        <p class="work"><span>Canon in D</span> <span class="by">Johann Pachelbel</span></p>
+        <p class="sub">Every player keeps time. Start anyone, anytime: they join on the next beat.</p>
+      </div>
+      <div class="transport" role="toolbar" aria-label="Transport">
+        <div class="transport-main">
+          <button id="tutti" class="btn-tutti" type="button" aria-label="Tutti: every player starts looping">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.6v10.8L13 8z" fill="currentColor"/></svg>
+            <span>Tutti</span>
+          </button>
+          <button id="stop" class="btn-stop" type="button" aria-label="Stop all players">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1.2" fill="currentColor"/></svg>
+            <span>Stop all</span>
+          </button>
+        </div>
+        <div class="tempo">
+          <div class="tempo-read">
+            <label for="bpm">Tempo</label>
+            <output id="bpmv" for="bpm">84</output>
+            <span class="unit">bpm</span>
+            <span id="marking" class="marking">Andante</span>
+          </div>
+          <input id="bpm" type="range" min="50" max="140" step="1" value="84" aria-label="Tempo in beats per minute">
+        </div>
+        <p class="kbd-hint"><kbd>Space</kbd> tutti or stop</p>
       </div>
     </header>
-    <div id="stage-wrap"><canvas id="stage"></canvas></div>
-    <div id="sections"></div>
+
+    <section class="proscenium" aria-label="Stage">
+      <div class="timeline" id="timeline" aria-hidden="true"></div>
+      <div id="stage-wrap"><canvas id="stage"></canvas></div>
+    </section>
+
+    <section class="program" aria-labelledby="program-h">
+      <header class="program-head">
+        <h2 id="program-h">The Players</h2>
+        <p class="tally" id="tally" aria-live="polite"></p>
+      </header>
+      <div id="sections"></div>
+    </section>
   </main>
   <script type="module" src="stage.js"></script>
   <script type="module" src="app.js"></script>
