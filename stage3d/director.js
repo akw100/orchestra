@@ -77,7 +77,7 @@ export function createDirector(ctx) {
   const from = newRig();     // start of the current move
   const goal = newRig();     // cur + drift + sway
   const focusPos = new THREE.Vector3();
-  let focusRadius = 1.5, focusLabel = '', focusIsShot = '';
+  let focusRadius = 1.5, focusLabel = '';
 
   let aspect = 0, narrow = 0;
   function fovFor(base) { return base + 9 * narrow; }
@@ -149,7 +149,7 @@ export function createDirector(ctx) {
     mode = 'idle'; idleSince = now; shotName = 'overview';
   }
   function goOverview(dur) {
-    shotName = 'overview'; focusLabel = ''; focusIsShot = '';
+    shotName = 'overview'; focusLabel = '';
     begin('return', 'idle'); addMove(rigs.overview, dur); run();
   }
   function moveDur(to) {
@@ -395,6 +395,7 @@ export function createDirector(ctx) {
 
     // --- choreography -> cur
     if (mode === 'user') {
+      if (rm) velYaw = velPitch = 0; // reduced motion: no flick-coasting
       if (!dragging && !pinching) {
         userRig.yaw += velYaw * dt; userRig.pitch += velPitch * dt;
         const k = Math.exp(-dt * 5); velYaw *= k; velPitch *= k;
@@ -502,7 +503,7 @@ export function createDirector(ctx) {
     const p = target.position, label = target.label ? String(target.label) : '';
     if (/conduct/i.test(label) || (Math.abs(p.x) < 0.8 && Math.abs(p.z - 0.9) < 0.8)) { shot('conductor', { hold: FOCUS_HOLD }); focusLabel = label || 'conductor'; return; }
     const same = mode === 'program' && programName === 'focus' && focusPos.distanceToSquared(p) < 0.25;
-    focusPos.copy(p); focusRadius = +target.radius || 1.4; focusLabel = label; focusIsShot = '';
+    focusPos.copy(p); focusRadius = +target.radius || 1.4; focusLabel = label;
     if (same) { // the same thing again: just keep holding it
       if (steps[stepIdx].kind === HOLD) stepT0 = now;
       return;
@@ -520,7 +521,7 @@ export function createDirector(ctx) {
     const key = SHOT_NAMES.includes(name) ? name : 'overview';
     if (key === 'overview') { goOverview(rm ? 0 : clamp(moveDur(rigs.overview), 2.2, 3.6)); return; }
     const hold = opts && opts.hold != null ? +opts.hold : SHOT_HOLD;
-    shotName = key; focusIsShot = key; focusLabel = '';
+    shotName = key; focusLabel = '';
     begin('shot', 'overview');
     addMove(rigs[key], key === 'conductor' || key === 'audience' ? Math.max(3, moveDur(rigs[key])) : moveDur(rigs[key]));
     addHold(hold > 0 ? hold : Infinity);
