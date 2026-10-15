@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hall harness</title>
+<link rel="stylesheet" href="../../theme.css">
+<style>
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 13px/1.3 system-ui, sans-serif; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  #ui { position: fixed; top: 12px; left: 12px; display: flex; flex-wrap: wrap; gap: 6px; z-index: 2; max-width: calc(100vw - 24px); }
+  #ui button { font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+  #ui button.on { background: var(--accent); color: var(--accent-ink); }
+  #stats { position: fixed; bottom: 10px; left: 12px; font: 12px ui-monospace, monospace; color: var(--ink-muted); z-index: 2; }
+  .orch-theme { display: none !important; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="ui">
+  <button id="curt">Curtains</button>
+  <button id="theme">Theme</button>
+  <button id="music" class="on">Music</button>
+  <button id="cam-house">House</button>
+  <button id="cam-wide">Wide</button>
+  <button id="cam-stage">On stage</button>
+  <button id="cam-crest">Crest</button>
+</div>
+<div id="stats"></div>
+<canvas id="c"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { buildHall } from '../hall.js';
+
+const qs = new URLSearchParams(location.search);
+if (qs.get('theme')) document.documentElement.dataset.theme = qs.get('theme');
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+renderer.setSize(innerWidth, innerHeight, false);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 200);
+
+const camel = (s) => s.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+const TOK = ['bg', 'surface', 'surface-2', 'ink', 'ink-muted', 'line', 'accent', 'accent-hi', 'accent-lo', 'accent-ink', 'velvet', 'velvet-hi', 'velvet-lo', 'glow', 'stage-bg', 'stage-floor', 'shadow', 'hue-s', 'hue-l', 'hue-l-fill'];
+const readTok = () => {
+  const cs = getComputedStyle(document.documentElement);
+  const t = {};
+  for (const k of TOK) t[camel(k)] = cs.getPropertyValue('--' + k).trim();
+  return t;
+};
+const theme = () => (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
+
+const ctx = {
+  THREE, scene, camera, renderer, canvas, tok: readTok(),
+  reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+  quality: qs.get('q') === 'low' ? 'low' : 'high',
+  addons: (p) => import('three/addons/' + p),
+};
+const t0 = performance.now();
+const hall = buildHall(ctx);
+const buildMs = performance.now() - t0;
+
+// ---- stand-in lighting (core A owns the real rig) ----
+const hemi = new THREE.HemisphereLight(0xfff1dc, 0x2a1408, 0.4);
+scene.add(hemi);
+const wash = new THREE.SpotLight(0xfff0d8, 400, 40, 0.75, 0.6, 1.6);
+wash.position.set(0, 13, 6); wash.target.position.set(0, 0.8, -4);
+wash.castShadow = true; wash.shadow.mapSize.set(2048, 2048); wash.shadow.bias = -0.0004;
+scene.add(wash, wash.target);
+const follow = hall.spotAnchors.slice(0, 3).map((a, i) => {
+  const s = new THREE.SpotLight(0xfff2dd, 320, 60, 0.11, 0.5, 1.4);
+  s.position.copy(a);
+  s.target.position.set([0, -3.5, 3.5][i], 1.2, [-2, -6, -6][i]);
+  scene.add(s, s.target);
+  return s;
+});
+const applyLights = () => {
+  const light = theme() === 'light';
+  hemi.intensity = light ? 1.6 : 0.25;
+  hemi.color.set(light ? 0xfff6e8 : 0xffd9b0);
+  wash.intensity = light ? 260 : 520;
+  scene.background = new THREE.Color(light ? 0xe8d9bd : 0x050304);
+};
+applyLights();
+
+// ---- placeholder musicians on the contract risers ----
+{
+  const mat = new THREE.MeshStandardMaterial({ color: 0x6b7a99, roughness: 0.6 });
+  const geo = new THREE.CapsuleGeometry(0.22, 0.85, 4, 10);
+  for (let t = 0; t <= 4; t++) {
+    const R = 4.2 + 1.55 * t, A = (78 - 7 * t) * Math.PI / 180, n = 6 + t * 2;
+    for (let i = 0; i < n; i++) {
+      const a = -A * 0.88 + (2 * A * 0.88 * i) / (n - 1);
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(R * Math.sin(a), 0.32 * t + 0.65, 1.6 - R * Math.cos(a));
+      m.castShadow = true;
+      scene.add(m);
+    }
+  }
+  const cond = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 1.1, 4, 10), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+  cond.position.set(0, 0.22 + 0.78, 0.9);
+  cond.castShadow = true;
+  scene.add(cond);
+}
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+const CAMS = {
+  house: [[0, 3.6, 19], [0, 3.2, -2]],
+  wide: [[11, 8.5, 25], [0, 4.5, 0]],
+  stage: [[-5.5, 2.6, 2.6], [4, 2.8, -5]],
+  crest: [[0, 9.5, 8], [0, 10.4, 2]],
+  back: [[0, 6, -9.5], [0, 4, 12]],
+};
+const setCam = (k) => { const [p, t] = CAMS[k]; camera.position.set(...p); controls.target.set(...t); controls.update(); };
+setCam(qs.get('cam') || 'house');
+
+// ---- fake frame data ----
+let music = qs.get('music') !== '0', open = qs.get('curt') !== 'closed';
+hall.setCurtains(open, { duration: 0 });
+document.getElementById('music').classList.toggle('on', music);
+const frame = { t: 0, dt: 0, level: 0, bands: { low: 0, mid: 0, high: 0 }, beat: 0, bpm: 96, playing: 0, total: 20, tutti: 0, theme: theme() };
+document.getElementById('curt').onclick = () => { open = !open; hall.setCurtains(open); };
+document.getElementById('theme').onclick = () => {
+  document.documentElement.dataset.theme = theme() === 'light' ? 'dark' : 'light';
+  frame.theme = theme(); hall.applyTheme(readTok()); applyLights();
+};
+document.getElementById('music').onclick = (e) => { music = !music; e.target.classList.toggle('on', music); };
+for (const k of ['house', 'wide', 'stage', 'crest']) document.getElementById('cam-' + k).onclick = () => setCam(k);
+
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+});
+
+// test hooks for headless screenshots
+window.__hall = { hall, frame, setCam, setOpen: (o, d) => { open = o; hall.setCurtains(o, d === undefined ? undefined : { duration: d }); }, renderer, scene, camera,
+  look: (p, t) => { camera.position.set(...p); controls.target.set(...t); controls.update(); },
+  setTheme: (t) => { document.documentElement.dataset.theme = t; frame.theme = t; hall.applyTheme(readTok()); applyLights(); },
+  step: (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) tick(dt); render(); } };
+
+const stats = document.getElementById('stats');
+let fpsAcc = 0, fpsN = 0, fps = 0;
+function tick(dt) {
+  frame.dt = dt; frame.t += dt;
+  frame.bpm = 96;
+  frame.beat = (frame.t * frame.bpm / 60) % 16;
+  const ph = (frame.beat % 1);
+  const env = music ? Math.exp(-ph * 4) : 0;
+  frame.bands.low = music ? 0.35 + 0.55 * env : 0;
+  frame.bands.mid = music ? 0.4 + 0.3 * Math.sin(frame.t * 1.3) ** 2 : 0;
+  frame.bands.high = music ? 0.25 + 0.4 * Math.abs(Math.sin(frame.t * 3.1)) : 0;
+  frame.level = music ? 0.3 + 0.45 * env + 0.15 * Math.sin(frame.t * 0.7) ** 2 : 0;
+  frame.playing = music ? 20 : 0;
+  hall.update(frame);
+}
+function render() { renderer.render(scene, camera); }
+let last = performance.now();
+const frozen = qs.has('freeze');
+function loop(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (!frozen) tick(dt);
+  controls.update();
+  render();
+  fpsAcc += dt; fpsN++;
+  if (fpsAcc > 0.5) { fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0;
+    const i = renderer.info;
+    stats.textContent = `${fps.toFixed(0)} fps · ${i.render.calls} calls · ${(i.render.triangles / 1000).toFixed(0)}k tris · build ${buildMs.toFixed(0)} ms · ${theme()}`;
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+window.__ready = true;
+</script>
+</body>
+</html>
