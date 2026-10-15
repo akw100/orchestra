@@ -1,0 +1,30 @@
+:root { --bg: #0f0d14; --fg: #f3ede4; --muted: #a59e94; --card: #1a1721cc; --line: #ffffff1a; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, sans-serif; }
+#stage { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
+main { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 24px 16px 60px; }
+h1 { margin: 0; font: 600 2.4rem/1.1 Georgia, serif; letter-spacing: -0.02em; }
+.sub { color: var(--muted); margin: 6px 0 16px; }
+.transport { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 20px; }
+button { font: inherit; color: var(--fg); background: #ffffff12; border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+button:hover { background: #ffffff22; }
+.primary { background: #e8b04a; color: #1a1205; border: 0; font-weight: 600; }
+.primary:hover { background: #f2c15f; }
+.beat { color: var(--muted); font-variant-numeric: tabular-nums; }
+#sections { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; backdrop-filter: blur(6px); }
+.card header { display: flex; align-items: baseline; gap: 8px; }
+.card h2 { margin: 0; font-size: 1.1rem; color: hsl(var(--hue) 80% 72%); }
+.fam { color: var(--muted); font-size: 0.8rem; }
+.count { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.count button { padding: 0 8px; }
+.seats { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.seat { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.disc { width: 48px; height: 48px; border-radius: 50%; padding: 0; font-weight: 600; border: 2px solid hsl(var(--hue) 60% 50% / 0.5); transition: transform 0.15s, box-shadow 0.3s; }
+.seat.on .disc { background: hsl(var(--hue) 70% 45%); box-shadow: 0 0 18px hsl(var(--hue) 90% 60% / 0.6); }
+.disc.hit { animation: hit 0.25s ease-out; }
+@keyframes hit { from { transform: scale(1.18); box-shadow: 0 0 30px hsl(var(--hue) 100% 70%); } }
+.loop { font-size: 0.75rem; padding: 0 6px; color: var(--muted); }
+.loop.is { color: hsl(var(--hue) 80% 72%); }
+.modes { display: flex; flex-wrap: wrap; gap: 6px; }
+.modes button { font-size: 0.8rem; padding: 4px 8px; }

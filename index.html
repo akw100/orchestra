@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pocket Orchestra</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="stage"></canvas>
+  <main>
+    <header class="top">
+      <h1>Pocket Orchestra</h1>
+      <p class="sub">Pachelbel's Canon in D. Every player stays in time — start anyone, anytime.</p>
+      <div class="transport">
+        <button id="tutti" class="primary">▶ Tutti</button>
+        <button id="stop">■ Stop all</button>
+        <label>Tempo <input id="bpm" type="range" min="50" max="140" value="84"> <span id="bpmv">84</span></label>
+        <span id="beat" class="beat">—</span>
+      </div>
+    </header>
+    <div id="sections"></div>
+  </main>
+  <script type="module" src="stage.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
