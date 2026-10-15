@@ -45,10 +45,10 @@ export function createPost(ctx) {
   const reduced = !!ctx.reducedMotion;
   const params = {
     // Evening: only HDR highlights (emissive, glyph cores, glints) bloom
-    dark: { strength: 0.62, radius: 0.55, threshold: 0.82, vignette: 0.42, grain: 0.04, ca: 0.0065, vigColor: [0.02, 0.01, 0.02] },
+    dark: { strength: 0.48, radius: 0.5, threshold: 0.92, vignette: 0.42, grain: 0.04, ca: 0.0065, vigColor: [0.02, 0.01, 0.02] },
     // Matinée: bright hall, so a high threshold and a gentle warm vignette
     light: { strength: 0.22, radius: 0.45, threshold: 1.02, vignette: 0.2, grain: 0.022, ca: 0.0045, vigColor: [0.72, 0.6, 0.48] },
-    levelGain: 0.55, tuttiGain: 0.75,
+    levelGain: 0.4, tuttiGain: 0.3, // ponytail: tuned with the real hall + 37 players; tutti was a white haze
   };
   let dark = true, composer = null, bloom = null, finish = null, enabled = false;
   let lv = 0, tu = 0, clock = 0;
@@ -136,7 +136,7 @@ export function createPost(ctx) {
     const p = dark ? params.dark : params.light;
     bloom.strength = p.strength * (0.75 + params.levelGain * lv + params.tuttiGain * tu);
     bloom.radius = p.radius + 0.18 * tu;
-    bloom.threshold = p.threshold - 0.08 * tu;
+    bloom.threshold = p.threshold - 0.02 * tu;
     finish.uniforms.uTime.value = clock;
     composer.render(dt);
   }
