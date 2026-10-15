@@ -314,6 +314,7 @@ async function boot() {
       rec.obj.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(rec.obj);
       const h = box.max.y; rec.height = Number.isFinite(h) && h > 0.6 && h < 4 ? h : /glock|timpani|choir|clap/.test(inst.id) ? 1.75 : 1.3;
+      rec.base = rec.obj.scale.clone(); // the module's own scale; the pop-in multiplies it
       rec.obj.scale.setScalar(0.001);
       scene.add(rec.obj);
       rec.active = null; rec.sel = -1;
@@ -619,7 +620,7 @@ async function boot() {
       title = `${r.inst.name || r.inst.id} ${roman(r.seat.k + 1)}` + (layer ? ` · ${layer}` : '');
       state = r.seat.active ? (r.seat.loop ? 'playing · looping' : 'playing once') : r.seat.loop ? 'resting · will loop' : 'resting · plays once';
       hue = r.inst.hue ?? 30;
-      pos = vtmp.set(r.pos.x, r.pos.y + r.height * r.obj.scale.y + 0.32, r.pos.z);
+      pos = vtmp.set(r.pos.x, r.pos.y + r.height * (r.obj.scale.y / (r.base.y || 1)) + 0.32, r.pos.z);
     } else if (hover === null && ptr && !curtainOpen) {
       title = 'The curtain is down'; state = 'click to raise it'; hue = 350;
       pos = null;
@@ -699,7 +700,7 @@ async function boot() {
       r.obj.position.set(r.pos.x, r.pos.y + hop, r.pos.z);
       r.obj.rotation.y = r.ry;
       const s = smooth(clamp(r.appear, 0, 1));
-      r.obj.scale.setScalar(Math.max(0.001, s));
+      r.obj.scale.copy(r.base).multiplyScalar(Math.max(0.001, s));
       r.obj.visible = r.appear > 0.01;
       try { r.m.update(frame); } catch (err) { report('musician.update', err); }
     }
