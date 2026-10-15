@@ -544,7 +544,7 @@ function onKey(e, down) {
   flashKey(c, true);
   const claim = () => { e.preventDefault(); e.stopPropagation(); };
 
-  if (c === 'Space') { claim(); if (!e.repeat) toast('Space', spaceToggle()); return; }
+  if (c === 'Space' && !(mode === 'play' && songs?.wantsSpace?.())) { claim(); if (!e.repeat) toast('Space', spaceToggle()); return; } // typewriter mode types spaces
   if (c === 'Backquote' || c === 'IntlBackslash') { claim(); if (!e.repeat) setMode(mode === 'play' ? 'conduct' : 'play'); return; }
 
   if (mode === 'play') {
