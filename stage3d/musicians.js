@@ -47,7 +47,7 @@ const wIdx = (m) => Math.floor(m / 12) * 7 + WHITE_OF[((m % 12) + 12) % 12];
 // ---------------------------------------------------------------- held instruments (torso space)
 function heldRig(geoFn, cfg) {
   return {
-    posture: 'seated', seat: 'chair', stand: 1.0,
+    posture: 'seated', seat: 'chair', stand: 0.9,
     build(m) {
       m.hold = new T.Group(); m.fig.torso.add(m.hold); m.qP = new T.Quaternion();
       m.parts = addParts(geoFn(), m.hold);
@@ -113,7 +113,7 @@ function bowedRig(big) {
   const sc = isBass ? new T.Vector3(2.9, 2.9, 4.3) : isCello ? new T.Vector3(2.1, 2.1, 3.2) : null;
   const side = big ? -1 : 1;
   return {
-    posture: isBass ? 'standing' : isCello ? 'wide' : 'seated', seat: isBass ? null : 'chair', stand: isBass ? 1.32 : 1.0,
+    posture: isBass ? 'standing' : isCello ? 'wide' : 'seated', seat: isBass ? null : 'chair', stand: isBass ? 1.2 : 0.9,
     build(m) {
       const parent = big ? m.object3d : m.fig.torso, s1 = m.inst.id === 'viola' ? 1.12 : 1;
       m.space = big ? 1 : 0;
@@ -428,7 +428,7 @@ const snareRig = kitRig((m) => {
 }, (m, f, dt) => ripple(m.dr, dt));
 
 const hihatRig = kitRig((m) => {
-  const x = 0.36, z = 0.34;
+  const x = 0.36, z = 0.46;
   addStand(m, () => [I.standPole([x, 0, z], [x, 0.88, z]), I.tripod(x, z, 0.24, 0.2), I.standPole([x, 0.88, z], [x, 1.02, z], 0.004)]);
   m.hatB = mesh(I.cymbal(0.18), MAT.bronze, m.object3d); m.hatB.position.set(x, 0.88, z); m.hatB.rotation.x = Math.PI;
   m.hatT = mesh(I.cymbal(0.18), MAT.bronze, m.object3d); m.hatT.position.set(x, 0.9, z);
@@ -437,7 +437,7 @@ const hihatRig = kitRig((m) => {
 }, (m, d) => {
   if (d.midi === 44) { m.gap.v -= 0.6; return; }
   if (d.midi === 46) m.openUntil = m.t + Math.max(0.2, d.dur || 0.3);
-  strike(m, 1, m.pt.set(m.hx - 0.06, 0.912 + m.gap.x, m.hz - 0.13), d.vel ?? 0.7, S.e.set(-0.18, 0.1, -0.24));
+  strike(m, 1, m.pt.set(m.hx - 0.06, 0.912 + m.gap.x, m.hz - 0.13), d.vel ?? 0.7, S.e.set(-0.22, 0.02, -0.22));
 }, (m, f, dt) => {
   spring(m.gap, m.t < m.openUntil ? 0.03 : 0.004, 30, dt, 0.5);
   if (m.gap.x < 0.001) { m.gap.x = 0.001; m.gap.v = Math.abs(m.gap.v) * 0.3; }
@@ -732,13 +732,13 @@ export function createConductor(ctx) {
     vL.set(-vR.x * mir + (1 - mir) * (0.2 + st8.turn.x * 0.2), lerp(0.3, vR.y, mir) + st8.cue.x * 0.12 + Math.sin(t * 0.8) * 0.02, lerp(0.3, vR.z, mir) + st8.cue.x * 0.06);
     S.b.set(0.16, 0.12, 0.2); vL.lerpVectors(S.b, vL, a);
     fig.targetV(1, vR, 0); fig.targetV(0, vL, 0);
-    fig.pole(1, -1, -0.5, -0.4); fig.pole(0, 1, -0.6, -0.4);
+    fig.pole(1, -0.7, -1, -0.3); fig.pole(0, 0.7, -1, -0.3);
     fig.arms[1].flex = -0.25 + (1 - e) * 0.25 * a; fig.arms[0].flex = -0.3;
     fig.turn = st8.turn.x; fig.lean = st8.lean.x + st8.bounce.x * 0.03; fig.lift = st8.bounce.x * 0.012;
     fig.swayZ = (vR.x + 0.12) * 0.08 * a; fig.headX = 0.1 * a + st8.bounce.x * 0.05; fig.headY = st8.turn.x * 0.6;
     fig.breath = Math.sin(t * 1.3) * 0.007;
     fig.applyBody(); fig.solve();
-    halo.scale.setScalar(0.05 + a * 0.05 + (f.level || 0) * 0.06 + Math.max(0, -st8.bounce.x) * 0.05);
+    halo.scale.setScalar(0.03 + a * 0.03 + (f.level || 0) * 0.03 + Math.max(0, -st8.bounce.x) * 0.03);
   }
   return {
     object3d: o, pickables: [cap], batonTip, onBeat, update,

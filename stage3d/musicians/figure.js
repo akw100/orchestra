@@ -71,7 +71,7 @@ const eyesGeo = () => geo('eyes', () => merge([ball(0.011, 0.031, 0.135, 0.082, 
   box(0.026, 0.005, 0.006, 0.032, 0.155, 0.083, 0, 0, -0.12), box(0.026, 0.005, 0.006, -0.032, 0.155, 0.083, 0, 0, 0.12)]));
 const mouthGeo = () => geo('mouth', () => ball(0.019, 0, 0, 0, 1.3, 1, 0.45, 10, 8));
 const cap = (theta, s = 1) => new T.SphereGeometry(0.106 * s, 22, 12, 0, TAU, 0, theta).scale(0.9, 1.06, 1).translate(0, 0.121, -0.008);
-const back = () => new T.SphereGeometry(0.104, 16, 8, Math.PI, Math.PI, 0.35 * Math.PI, 0.3 * Math.PI).scale(0.9, 1.06, 1).translate(0, 0.117, -0.006);
+const back = () => new T.SphereGeometry(0.104, 16, 8, Math.PI, Math.PI, 0.22 * Math.PI, 0.43 * Math.PI).scale(0.9, 1.06, 1).translate(0, 0.117, -0.006);
 export const HAIR_STYLES = 6;
 function hairGeo(style) {
   return geo('hair-' + style, () => {
@@ -116,7 +116,7 @@ export function standGeo(H) {
   return geo('stand' + H, () => {
     const tilt = 0.38, f = [cyl([0, 0, 0], [0, H - 0.12, 0], 0.012, 0.01, 8)];
     for (let i = 0; i < 3; i++) { const a = (i / 3) * TAU; f.push(cyl([0, 0.2, 0], [Math.sin(a) * 0.27, 0.005, Math.cos(a) * 0.27], 0.008, 0.008, 5)); }
-    const desk = box(0.5, 0.34, 0.01, 0, 0, 0).rotateY(Math.PI).rotateX(tilt).translate(0, H, 0);
+    const desk = box(0.46, 0.3, 0.01, 0, 0, 0).rotateY(Math.PI).rotateX(tilt).translate(0, H, 0);
     const ledge = box(0.5, 0.014, 0.05, 0, 0, -0.024).rotateX(tilt).translate(0, H - 0.17 * Math.cos(tilt), -0.17 * Math.sin(tilt));
     const arm = cyl([0, H + 0.15, 0.06], [0, H + 0.25, -0.06], 0.005, 0.005, 5);
     f.push(desk, ledge, arm);

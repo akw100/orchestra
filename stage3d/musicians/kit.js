@@ -120,7 +120,7 @@ function makeMaterials() {
     mouth: St({ color: '#4a1a1e', roughness: 0.8 }),
     ebony: P({ color: '#151113', roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.2 }),
     lacquer: P({ color: '#0c0b0d', roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.05 }),
-    varnish: P({ color: '#86390f', roughness: 0.36, clearcoat: 1, clearcoatRoughness: 0.1, sheen: 0.3, sheenColor: new T.Color('#ff9a4a') }),
+    varnish: P({ color: '#5c240c', roughness: 0.5, clearcoat: 0.35, clearcoatRoughness: 0.3, envMapIntensity: 0.5 }),
     maple: P({ color: '#cf9a5c', roughness: 0.42, clearcoat: 0.6, clearcoatRoughness: 0.2 }),
     brass: St({ color: '#e3ad4b', metalness: 0.92, roughness: 0.22 }),
     gold: St({ color: '#dcb45e', metalness: 0.95, roughness: 0.3 }),
@@ -161,7 +161,7 @@ export function instMat(inst) {
   }
   return m;
 }
-function tintInst(m) { m.color.setHSL((m.userData.hue % 360) / 360, HUE_S, HUE_L, T.SRGBColorSpace); }
+function tintInst(m) { m.color.setHSL((m.userData.hue % 360) / 360, HUE_S * 0.8, HUE_L * 0.72, T.SRGBColorSpace); }
 
 let themeSig = '';
 export let DARK = true;
