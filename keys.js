@@ -276,6 +276,7 @@ function renderHud() {
 }
 function bumpBpm() { if (reduce.matches) return; H.bpmBox.classList.remove('bump'); void H.bpmBox.offsetWidth; H.bpmBox.classList.add('bump'); }
 addEventListener('input', (e) => { if (e.target?.id === 'bpm') { H.bpm.textContent = O.bpm; } });
+addEventListener('orch:tempo', () => { H.bpm.textContent = O.bpm; }); // a new piece brings its own tempo
 
 // toasts: one at a time, the old one blurs away upward
 let lastToast = null;
