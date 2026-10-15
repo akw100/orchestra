@@ -4,7 +4,7 @@ import { analyser, byId } from './audio.js';
 const cv = document.getElementById('stage'), g = cv.getContext('2d');
 const data = new Uint8Array(analyser.frequencyBinCount);
 const sparks = [];
-const fit = () => { cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio; };
+const fit = () => { cv.width = cv.clientWidth * devicePixelRatio; cv.height = cv.clientHeight * devicePixelRatio; };
 addEventListener('resize', fit); fit();
 
 addEventListener('orch:note', (e) => {
@@ -14,7 +14,7 @@ addEventListener('orch:note', (e) => {
 
 (function frame() {
   const W = cv.width, H = cv.height;
-  g.fillStyle = 'rgba(15,13,20,0.25)'; g.fillRect(0, 0, W, H);
+  g.fillStyle = 'rgba(8,7,12,0.25)'; g.fillRect(0, 0, W, H);
   analyser.getByteFrequencyData(data);
   const n = 96, bw = W / n;
   for (let i = 0; i < n; i++) {
