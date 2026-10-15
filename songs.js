@@ -196,7 +196,7 @@ function scrollChip(b) {
 }
 
 const UNIT = 26, CAP = 46;
-function pickSong(i) {
+function pickSong(i, from) {
   stopDemo(); releaseBacking();
   songIdx = Math.max(-1, Math.min(SONGS.length - 1, i));
   root.querySelectorAll('.sb-song').forEach((b) => b.setAttribute('aria-pressed', +b.dataset.i === songIdx));
@@ -216,7 +216,14 @@ function pickSong(i) {
       </div>`).join('');
   }
   restart();
+  dispatchEvent(new CustomEvent('orch:songbook', { detail: { title: s?.title ?? '', from } }));
 }
+// multiplayer: net.js turns everyone to the room's song with from: 'net' ('' = free play)
+addEventListener('orch:songbook', (e) => {
+  if (e.detail?.from !== 'net') return;
+  const i = SONGS.findIndex((s) => s.title === e.detail.title);
+  if ((i >= 0 || !e.detail.title) && i !== songIdx) pickSong(i, 'net');
+});
 function restart() {
   pos = 0; finished = false;
   $('.sb-bravo').classList.remove('is-on');
