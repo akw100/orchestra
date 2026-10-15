@@ -307,7 +307,7 @@ body:not(.playing) .timeline.running { opacity: 0.55; transition: opacity 0.6s; 
   background: conic-gradient(var(--ic) calc(var(--p) * 1turn), color-mix(in srgb, var(--ic) 22%, transparent) 0);
 }
 .chip.on { border-color: transparent; }
-.chip.on .num { color: #1a0e07; }
+.chip.on .num { color: var(--on-hue, #1a0e07); }
 .chip.on .fill { opacity: 1; transform: scale(1); }
 .chip.on .ring { opacity: 1; }
 .seat.selected .chip { outline: 2px solid var(--c-accent); outline-offset: 8px; }
