@@ -193,7 +193,7 @@ const tom = (f) => (c, out, t, v, end) => { // tuned membrane: 3 modes with pitc
   [[1, 1, 1], [1.59, 0.45 + 0.25 * v, 0.45], [2.14, 0.25 * v, 0.3]].forEach(([r, a, d]) =>
     sweep(osc(c, 'sine', f * r, t, end, env(c, o, t, a * lv, 0.001, D * d)), t, f * r * (1.18 + 0.22 * v), f * r, 0.07, f * r * 0.97, 0.6));
   noise(c, t, end, filt(c, 'bandpass', f * 4, 1, env(c, o, t, 0.8 * lv, 0.001, 0.07)));
-  noise(c, t, end, filt(c, 'bandpass', 3200, 0.8, env(c, o, t, 0.5 * v * v, 0.0004, 0.014)));
+  noise(c, t, end, filt(c, 'bandpass', 3200, 0.8, env(c, o, t, 1.2 * v * v, 0.0004, 0.016)));
 };
 
 // ---------- the kit: name -> {fn, len, layers, rr, peak (target peak at vel 1), jit (random cents/hit)} ----------
@@ -216,6 +216,8 @@ export const PIECES = { // exported for debugging / calibration
   tamb: { fn: tamb, len: 0.6, layers: L3, rr: 2, peak: 0.16, jit: 20 },
   cow: { fn: cow, len: 0.7, layers: L3, rr: 1, peak: 0.2, jit: 4 },
 };
+// live-synthesis gain before a piece has rendered (measured top-layer scale at 48 kHz)
+const GUESS = { kick: 0.75, snare: 0.43, chh: 0.19, ohh: 0.15, phh: 0.11, clap: 0.28, stick: 0.25, crash: 0.11, ride: 0.23, bell: 0.17, china: 0.1, splash: 0.1, tamb: 0.19, cow: 0.19, tom41: 0.4, tom43: 0.44, tom45: 0.47, tom47: 0.48, tom48: 0.49, tom50: 0.5 };
 // GM note -> [piece, extra cents]
 const NOTE = {
   35: ['kick', -150], 36: ['kick'], 37: ['stick'], 38: ['snare'], 39: ['clap'], 40: ['snare', 120],
@@ -242,22 +244,23 @@ function render(P, v) {
     const p = c.startRendering(); if (p && p.then) p.then(res, rej);
   });
 }
-function finish(buf, scale) { // scale, trim the silent tail, 5 ms fade-out
+function finish(buf, scale) { // scale, trim the inaudible tail (saves memory), 5 ms fade-out
   const d = buf.getChannelData(0);
-  let n = d.length; while (n > 1 && Math.abs(d[n - 1]) < 1e-4) n--;
+  let n = d.length; while (n > 1 && Math.abs(d[n - 1]) * scale < 2e-4) n--; // ~-74 dBFS
   n = Math.min(d.length, n + Math.round(SR * 0.005));
   const out = ctx.createBuffer(1, n, SR), o = out.getChannelData(0), fade = Math.round(SR * 0.005);
   for (let i = 0; i < n; i++) o[i] = d[i] * scale * Math.min(1, (n - i) / fade);
   return out;
 }
 const peakOf = (b) => { const d = b.getChannelData(0); let m = 0; for (let i = 0; i < d.length; i++) m = Math.max(m, Math.abs(d[i])); return m; };
-export const stats = {}; // name -> {scale, ms} (debug/calibration)
+export const stats = {}; // name -> {scales per layer, ms} (debug/calibration)
 const CURVE = 1.4; // loudness ~ vel^CURVE (about 15 dB from vel 0.3 to 1)
+const LEVEL = 1.4; // whole kit vs the orchestra (measured: drums alone ~7 dB under tutti RMS; tutti+kit peak 0.85, no clipping)
 async function renderPiece(name) {
   const P = PIECES[name], t0 = performance.now();
   const layers = await Promise.all(P.layers.map((v) => Promise.all(Array.from({ length: P.rr }, () => render(P, v)))));
   // each layer keeps its own timbre but is leveled onto one velocity curve (by its loudest take)
-  const scales = layers.map((set, i) => (P.peak * P.layers[i] ** CURVE) / Math.max(1e-6, ...set.map(peakOf)));
+  const scales = layers.map((set, i) => (LEVEL * P.peak * P.layers[i] ** CURVE) / Math.max(1e-6, ...set.map(peakOf)));
   P.scale = scales[scales.length - 1];
   BANK[name] = layers.map((set, i) => set.map((b) => finish(b, scales[i])));
   stats[name] = { scales: scales.map((x) => +x.toFixed(3)), ms: Math.round(performance.now() - t0) };
@@ -275,7 +278,7 @@ function hit(name, t, vel, out, cents) {
   const P = PIECES[name], v = Math.min(1.25, Math.max(0.05, vel || 0)), bank = BANK[name];
   const g = ctx.createGain(); g.connect(out);
   if (!bank) { // not rendered yet: same graph, live
-    g.gain.value = P.scale ?? P.guess;
+    g.gain.value = P.scale ?? LEVEL * (GUESS[name] ?? 0.3);
     P.fn(ctx, g, t, Math.min(1, v), t + P.len);
     return { g, t };
   }
