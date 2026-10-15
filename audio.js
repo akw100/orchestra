@@ -24,10 +24,10 @@ const reverb = ctx.createConvolver();
 const wet = ctx.createGain(); wet.gain.value = 0.35;
 reverb.connect(wet).connect(master);
 
-const noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+export const noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
 noiseBuf.getChannelData(0).forEach((_, i, d) => (d[i] = Math.random() * 2 - 1));
 
-const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+export const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
 function osc(type, f, t, end, out, gain = 1, detune = 0) {
   const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = detune;
@@ -58,7 +58,7 @@ function lp(out, freq, q = 0.7) {
   const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq; f.Q.value = q; f.connect(out); return f;
 }
 
-const VOICES = {
+export const VOICES = {
   string(f, t, dur, vel, out, dt) {
     const [g, end] = sus(out, t, dur, vel * 0.22, 0.09, 0.3);
     const fl = lp(g, Math.min(f * 5 + 600, 9000), 1.2);
@@ -111,7 +111,7 @@ const VOICES = {
 
 // ---- the piece: Pachelbel's Canon progression in D, 16 beats / 4 bars ----
 export const LOOP_BEATS = 16;
-const CHORDS = [[50, 'M'], [45, 'M'], [47, 'm'], [42, 'm'], [43, 'M'], [38, 'M'], [43, 'M'], [45, 'M']]; // bass midi, 2 beats each
+export const CHORDS = [[50, 'M'], [45, 'M'], [47, 'm'], [42, 'm'], [43, 'M'], [38, 'M'], [43, 'M'], [45, 'M']]; // bass midi, 2 beats each
 const triad = (r, q) => [r, r + (q === 'M' ? 4 : 3), r + 7];
 const into = (m, lo) => { while (m < lo) m += 12; while (m >= lo + 12) m -= 12; return m; };
 const per = (fn) => CHORDS.flatMap(([r, q], i) => fn(r, q, i * 2, i)); // fn returns [[beat, midi, dur, vel?]...]
@@ -189,11 +189,13 @@ INSTRUMENTS.forEach((i) => { for (let k = 0; k < i.copies; k++) addSeat(i.id); }
 
 // ---- scheduler: 16th-note steps, 64 per loop ----
 const STEPS = LOOP_BEATS * 4;
-const NOTES = Object.fromEntries(Object.entries(PARTS).map(([id, notes]) => {
+const compile = (notes) => {
   const map = Array.from({ length: STEPS }, () => []);
   notes.forEach(([b, m, d, v = 1]) => map[Math.round(b * 4) % STEPS].push([m, d, v]));
-  return [id, map];
-}));
+  return map;
+};
+const NOTES = Object.fromEntries(Object.entries(PARTS).map(([id, notes]) => [id, [compile(notes)]])); // id -> one part per copy (cycled)
+const voiceOf = (inst) => (typeof inst.voice === 'function' ? inst.voice : VOICES[inst.voice]);
 export let bpm = 84;
 export const setBpm = (b) => (bpm = b);
 let step = 0, nextTime = 0, running = false;
@@ -205,10 +207,11 @@ function scheduleStep(s, t) {
     if (!seat.active || s < seat.start) continue;
     if (s >= seat.end) { seat.active = false; later(t, () => emit('orch:change')); continue; }
     const inst = byId[seat.inst];
-    for (const [m, d, v] of NOTES[seat.inst][s % STEPS]) {
+    const parts = NOTES[seat.inst];
+    for (const [m, d, v] of parts[seat.k % parts.length][s % STEPS]) {
       const midi = seat.transform(m), vel = v * (0.85 + Math.random() * 0.15);
       const tt = t + (seat.k ? Math.random() * 0.015 : 0); // ponytail: tiny humanize so copies don't phase
-      VOICES[inst.voice](hz(midi), tt, d * spb, vel, seat.out, seat.detune);
+      voiceOf(inst)(hz(midi), tt, d * spb, vel, seat.out, seat.detune, midi);
       later(tt, () => emit('orch:note', { seat: seat.id, inst: seat.inst, midi, vel, dur: d * spb }));
     }
   }
@@ -250,3 +253,22 @@ export function section(instId, mode) {
 export const tutti = () => seats.forEach((s) => s.active || play(s, true));
 export const stopAll = () => seats.forEach((s) => s.active && stop(s));
 export const sectionSize = (instId) => seats.filter((s) => s.inst === instId).length;
+
+// ---- plugins & live playing ----
+// def: {id, name, family, hue, kind?, copies?, voice: name|fn(f, t, dur, vel, out, detune, midi), part: [[beat, midi, durBeats, vel?]...] | parts: [part per copy]}
+export function registerInstrument(def) {
+  const inst = { kind: 'perc', copies: 1, ...def };
+  INSTRUMENTS.push(inst); byId[inst.id] = inst;
+  NOTES[inst.id] = (inst.parts || [inst.part]).map(compile);
+  for (let k = 0; k < inst.copies; k++) addSeat(inst.id);
+  return inst;
+}
+// play one note right now on a seat (or the first seat of an instrument id); for typing/keyboard play
+export function strike(seat, midi, beats = 1, vel = 0.9) {
+  if (typeof seat === 'string') seat = seats.find((x) => x.inst === seat);
+  if (!seat) return;
+  if (ctx.state !== 'running') ctx.resume();
+  const inst = byId[seat.inst], t = ctx.currentTime + 0.01, dur = (beats * 60) / bpm;
+  voiceOf(inst)(hz(midi), t, dur, vel, seat.out, seat.detune, midi);
+  emit('orch:note', { seat: seat.id, inst: seat.inst, midi, vel, dur, live: true });
+}
