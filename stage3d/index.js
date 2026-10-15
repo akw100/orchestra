@@ -135,7 +135,7 @@ function mountToggle() {
 
 if (wrap && forced !== '2d' && hasWebGL2()) {
   mountToggle();
-  if (forced === '3d' || readPref() !== '2d') { root.dataset.stage = '3d'; want3d(); }
+  if (forced === '3d' || readPref() === '3d') // ponytail: 3D opt-in until hall + musicians land; flip to !== '2d' then { root.dataset.stage = '3d'; want3d(); }
   else setMode('2d');
 }
 
