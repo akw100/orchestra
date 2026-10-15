@@ -142,8 +142,8 @@ html.theme-fading *::after {
   --tt-spring: cubic-bezier(.5, -0.45, .3, 1.45);
   position: fixed;
   z-index: var(--theme-toggle-z, 60);
-  left: max(16px, env(safe-area-inset-left));
-  bottom: max(16px, env(safe-area-inset-bottom));
+  right: max(16px, env(safe-area-inset-right)); /* top-right: the keys HUD owns the bottom edge */
+  top: max(16px, env(safe-area-inset-top));
   display: inline-flex;
   align-items: center;
   gap: 10px;
