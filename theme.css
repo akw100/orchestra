@@ -3,7 +3,9 @@
    canvases read them with getComputedStyle(document.documentElement) on load and on `orch:theme`.
    Evening (dark): velvet, deep shadows, warm gold. Matinee (light): ivory parchment, warm wood, burgundy velvet, gold.
    Instrument color = hsl(<hue> var(--hue-s) var(--hue-l)): text-safe (>= 4.5:1) on --bg/--surface/--surface-2 for every hue.
-   Fills/glows that are not text may use --hue-l-fill instead of --hue-l. */
+   Fills/glows that are not text may use --hue-l-fill instead of --hue-l.
+   Text ON an instrument-colored fill hsl(<hue> var(--hue-s) var(--hue-l)): color: var(--on-hue).
+   Extras beyond the contract: --accent-hi/--accent-lo (non-text gilt), --velvet-hi/--velvet-lo, --hue-l-fill, --on-hue, --font-display/--font-body. */
 
 :root {
   color-scheme: light dark;
@@ -33,6 +35,7 @@
   --hue-s: 66%;
   --hue-l: 24%;
   --hue-l-fill: 42%;
+  --on-hue: #fffaf0;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -58,6 +61,7 @@
     --hue-s: 72%;
     --hue-l: 70%;
     --hue-l-fill: 52%;
+    --on-hue: #1a0e07;
   }
 }
 
@@ -83,6 +87,7 @@
   --hue-s: 66%;
   --hue-l: 24%;
   --hue-l-fill: 42%;
+  --on-hue: #fffaf0;
 }
 
 :root[data-theme="dark"] {
@@ -107,6 +112,7 @@
   --hue-s: 72%;
   --hue-l: 70%;
   --hue-l-fill: 52%;
+  --on-hue: #1a0e07;
 }
 
 html { background-color: var(--bg); color: var(--ink); }
