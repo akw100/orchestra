@@ -479,6 +479,8 @@ $('.sb-pill').addEventListener('click', () => requestMode(true));
 // mouse clicks shouldn't leave a focus ring on a panel button while you type notes
 panel.addEventListener('click', (e) => { if (e.detail > 0) e.target.closest('button')?.blur(); });
 $('.sb-x').addEventListener('click', () => requestMode(false));
+// theater mode makes the stage full-viewport: float above it
+addEventListener('orch:theater', (e) => root.classList.toggle('is-theater', !!e.detail?.on));
 addEventListener('orch:mode', (e) => (e.detail?.mode === 'play' ? enter() : e.detail?.mode === 'conduct' && exit()));
 addEventListener('orch:beat', (e) => {
   lastBeat = { beat: e.detail.beat, t: performance.now() };

@@ -285,7 +285,9 @@
 .sb-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; margin: 4px 0 0; font-size: 0.74rem; color: var(--sb-mute); }
 .sb-legend kbd { margin: 0 2px 0 0; }
 
-.sb-fx { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 901; pointer-events: none; }
+.sb.is-theater .sb-panel, .sb.is-theater .sb-pill { z-index: 2000; }
+.sb.is-theater .sb-panel { background: color-mix(in oklab, var(--sb-bg) 90%, transparent); backdrop-filter: blur(14px); }
+.sb-fx { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 2001; pointer-events: none; }
 
 @media (max-width: 600px) {
   .sb-panel { width: 100vw; padding: 12px 12px 10px; border-radius: 16px 16px 0 0; border-left: 0; border-right: 0; }
