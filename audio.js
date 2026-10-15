@@ -296,9 +296,9 @@ const VARIANTS = {
 const LEVEL = {
   violin: 1.5, viola: 0.6, cello: 0.8, contrabass: 0.65, flute: 0.56, clarinet: 0.5, trumpet: 0.6, horn: 0.35,
   harp: 1, piano: 0.6, glockenspiel: 1, timpani: 0.45, choir: 0.6,
-  kick: 0.38, snare: 0.3, hihat: 0.45, toms: 0.35, cymbals: 0.5,
+  kick: 0.57, snare: 0.45, hihat: 0.68, toms: 0.53, cymbals: 0.75, // x1.5 for D1's rendered kit: drums ~7 dB under the orchestra
 };
-const FAMILY_LEVEL = { drums: 0.5 }; // measured: ~7 dB under the orchestra with the rendered kit
+const FAMILY_LEVEL = { drums: 0.5 };
 const PAN = { // concert seating, audience view
   violin: -0.55, viola: 0.15, cello: 0.4, contrabass: 0.62, flute: -0.12, clarinet: 0.12, trumpet: 0.32, horn: -0.3,
   harp: -0.72, piano: -0.4, glockenspiel: 0.5, timpani: 0.05, choir: 0, kick: 0, snare: 0.06, hihat: 0.28, toms: -0.18, cymbals: 0.35,
