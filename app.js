@@ -10,7 +10,6 @@ const EASE_IN = 'cubic-bezier(.7,0,.84,0)';
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI'];
 const roman = (k) => ROMAN[k] || String(k + 1);
 const ROLE = { melody: 'melody', chord: 'harmony', bass: 'bass line', perc: 'rhythm' };
-const MODES = [['all', 'All'], ['most', 'Most'], ['allbutone', 'All but one'], ['solo', 'Solo'], ['none', 'None']];
 const CHORDS = ['D', 'A', 'Bm', 'F♯m', 'G', 'D', 'G', 'A'];
 const TEMPO = [[60, 'Largo'], [76, 'Adagio'], [108, 'Andante'], [120, 'Moderato'], [Infinity, 'Allegro']];
 const marking = (b) => TEMPO.find(([max]) => b < max)[1];
@@ -19,8 +18,8 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const ICON = {
   minus: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
   plus: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h9M8 3.5v9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
-  loop: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8.5A5 5 0 1 1 11.3 4.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12.2 1.6v3.1H9.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  once: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8h8.2M7.6 4.6 11 8l-3.4 3.4M13.5 3.5v9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  play: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.2v9.6L12.6 8z" fill="currentColor"/></svg>',
+  stop: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.2" y="4.2" width="7.6" height="7.6" rx="1" fill="currentColor"/></svg>',
 };
 
 // ---------- timeline: 4 bars x 4 beats, chord names, smooth playhead ----------
@@ -73,25 +72,28 @@ function buildStrip(inst) {
   el.innerHTML = `
     <div class="meter" aria-hidden="true"><i></i></div>
     <header class="strip-name"><h4>${inst.name}</h4><p>${ROLE[inst.kind] ?? inst.kind}</p></header>
-    <div class="count" role="group" aria-label="${inst.name} players">
-      <button class="step" type="button" data-a="rm" aria-label="Remove a ${low} player">${ICON.minus}</button>
-      <output aria-label="${inst.name} players">0</output>
-      <button class="step" type="button" data-a="add" aria-label="Add a ${low} player">${ICON.plus}</button>
-    </div>
-    <div class="seats"></div>
-    <div class="modes" role="group" aria-label="${inst.name} section: who plays">
-      <span class="ind" aria-hidden="true"></span>
-      ${MODES.map(([m, l]) => `<button type="button" data-a="${m}" aria-pressed="false">${l}</button>`).join('')}
+    <button class="sect" type="button" data-a="sect" hidden></button>
+    <div class="seats">
+      <div class="count" role="group" aria-label="${inst.name} players">
+        <button class="step" type="button" data-a="rm" aria-label="Remove a ${low} player">${ICON.minus}</button>
+        <button class="step" type="button" data-a="add" aria-label="Add a ${low} player">${ICON.plus}</button>
+      </div>
     </div>`;
   const S = {
-    inst, el, mode: undefined, lastMode: null,
-    seatsEl: $('.seats', el), countEl: $('output', el), rmBtn: $('[data-a="rm"]', el),
-    modesEl: $('.modes', el), ind: $('.ind', el), modeBtns: [...el.querySelectorAll('.modes button')],
+    inst, el, live: null,
+    seatsEl: $('.seats', el), countEl: $('.count', el), rmBtn: $('[data-a="rm"]', el), sectBtn: $('.sect', el),
     meter: $('.meter', el),
   };
-  new ResizeObserver(() => placeInd(S, false)).observe(S.modesEl);
+  setSectLook(S, false);
   strips.set(inst.id, S);
   return el;
+}
+// one section-wide control: Play all when everyone rests, Stop once anyone plays (same rule as Enter and the conductor)
+function setSectLook(S, live) {
+  S.live = live;
+  S.sectBtn.classList.toggle('on', live);
+  S.sectBtn.innerHTML = `${live ? ICON.stop : ICON.play}<span>${live ? 'Stop' : 'Play all'}</span>`;
+  S.sectBtn.setAttribute('aria-label', `${S.inst.name}: ${live ? 'stop the section' : 'play every player'}`);
 }
 
 function makeChip(seat, inst) {
@@ -102,21 +104,20 @@ function makeChip(seat, inst) {
     <button class="chip" type="button" data-a="toggle" aria-pressed="false">
       <span class="ring" aria-hidden="true"></span><span class="fill" aria-hidden="true"></span>
       <span class="halo" aria-hidden="true"></span><span class="num" aria-hidden="true">${roman(seat.k)}</span>
-    </button>
-    <button class="looptog" type="button" data-a="loop"></button>`;
-  const c = { seat, inst, wrap, chip: $('.chip', wrap), loopBtn: $('.looptog', wrap), active: null, loop: null, startAbs: 0 };
+    </button>`;
+  const c = { seat, inst, wrap, chip: $('.chip', wrap), active: null, loop: null, startAbs: 0 };
   setLoopLook(c, seat.loop);
   setActive(c, seat.active, 0);
   return c;
 }
 
-const name = (c) => `${c.inst.name} ${roman(c.seat.k)}`;
+// loop vs once lives on the chip itself (right-click / Shift-click, like the stage); a dashed rim marks "once"
+const label = (c) => c.chip.setAttribute('aria-label',
+  `${c.inst.name} ${roman(c.seat.k)}: ${c.active ? `playing${c.loop ? '' : ' once'}, stop` : `play${c.loop ? '' : ' once'}`}`);
 function setLoopLook(c, loop) {
   c.loop = loop;
   c.wrap.classList.toggle('once', !loop);
-  c.loopBtn.innerHTML = `${loop ? ICON.loop : ICON.once}<span>${loop ? 'loop' : 'once'}</span>`;
-  c.loopBtn.setAttribute('aria-pressed', String(loop));
-  c.loopBtn.setAttribute('aria-label', `${name(c)}: ${loop ? 'loops' : 'plays once'}. Switch to ${loop ? 'play once' : 'loop'}`);
+  label(c);
 }
 function setActive(c, on, delay) {
   if (on && !c.active) {
@@ -127,7 +128,7 @@ function setActive(c, on, delay) {
   c.wrap.style.setProperty('--d', `${delay}ms`);
   c.chip.classList.toggle('on', on);
   c.chip.setAttribute('aria-pressed', String(on));
-  c.chip.setAttribute('aria-label', `${name(c)}: ${on ? 'playing, stop' : 'play'}`);
+  label(c);
 }
 
 function enter(el) {
@@ -145,27 +146,6 @@ function leave(c) {
     [{ opacity: 1, transform: 'none', filter: 'blur(0)' }, { opacity: 0, transform: 'translateY(8px) scale(.4)', filter: 'blur(5px)' }],
     { duration: 300, easing: EASE_IN, fill: 'forwards' },
   ).finished.then(() => c.wrap.remove());
-}
-
-// ---------- section mode indicator ----------
-const want = (m, n) => ({ all: n, most: Math.max(1, Math.ceil(n * 0.66)), allbutone: Math.max(1, n - 1), solo: 1, none: 0 })[m];
-function modeOf(S, n, on) {
-  if (S.lastMode && want(S.lastMode, n) === on) return S.lastMode;
-  if (on === 0) return 'none';
-  if (on === n) return 'all';
-  if (on === 1) return 'solo';
-  if (on === n - 1) return 'allbutone';
-  if (on === want('most', n)) return 'most';
-  return null;
-}
-function placeInd(S, animate = true) {
-  const btn = S.modeBtns.find((b) => b.dataset.a === S.mode);
-  S.modeBtns.forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
-  S.modesEl.classList.toggle('has', !!btn);
-  if (!btn || !btn.offsetWidth) return;
-  S.ind.classList.toggle('glide', animate && !reduce.matches);
-  S.ind.style.width = `${btn.offsetWidth}px`;
-  S.ind.style.transform = `translateX(${btn.offsetLeft}px)`;
 }
 
 // ---------- in-place diff, coalesced per task (section() emits one change per seat) ----------
@@ -188,21 +168,17 @@ function update() {
       if (!c) {
         c = makeChip(seat, inst);
         chips.set(seat.id, c);
-        S.seatsEl.append(c.wrap);
+        S.seatsEl.insertBefore(c.wrap, S.countEl);
         if (!first) enter(c.wrap);
       } else if (c.active !== seat.active) changed.push([c, seat.active]);
       if (c.loop !== seat.loop) setLoopLook(c, seat.loop);
     }
     const on = list.filter((s) => s.active).length;
     total += list.length; playing += on;
-    if (S.countEl.textContent !== String(list.length)) {
-      S.countEl.textContent = list.length;
-      if (!first && !reduce.matches) S.countEl.animate([{ transform: 'translateY(-6px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 360, easing: EASE_OUT });
-    }
     S.rmBtn.disabled = list.length <= 1;
+    S.sectBtn.hidden = list.length < 2; // a lone player is its own section toggle
     S.el.classList.toggle('live', on > 0);
-    const m = modeOf(S, list.length, on);
-    if (m !== S.mode) { S.mode = m; placeInd(S, !first); }
+    if (S.live !== on > 0) setSectLook(S, on > 0);
   }
   // stagger: players visibly join / leave one after another
   const gap = changed.length > 1 ? Math.min(80, 720 / changed.length) : 0;
@@ -219,11 +195,17 @@ sections.addEventListener('click', (e) => {
   const S = strips.get(b.closest('.strip').dataset.inst);
   const seat = O.seats.find((s) => s.id === +b.closest('.seat')?.dataset.seat);
   const a = b.dataset.a;
-  if (a === 'toggle') seat && O.toggle(seat);
-  else if (a === 'loop') seat && O.setLoop(seat, !seat.loop);
+  if (a === 'toggle') seat && (e.shiftKey || e.altKey ? O.setLoop(seat, !seat.loop) : O.toggle(seat));
   else if (a === 'add') O.addSeat(S.inst.id);
   else if (a === 'rm') O.removeSeat(S.inst.id);
-  else { S.lastMode = a; O.section(S.inst.id, a); schedule(); }
+  else if (a === 'sect') O.section(S.inst.id, S.live ? 'none' : 'all');
+});
+sections.addEventListener('contextmenu', (e) => {
+  const w = e.target.closest('.chip')?.closest('.seat:not(.leaving)');
+  const seat = w && O.seats.find((s) => s.id === +w.dataset.seat);
+  if (!seat) return;
+  e.preventDefault();
+  O.setLoop(seat, !seat.loop);
 });
 
 // ---------- notes: chip pulse in the instrument hue + section meter ----------

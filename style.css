@@ -197,6 +197,8 @@ body:not(.playing) .timeline.running { opacity: 0.55; transition: opacity 0.6s; 
 }
 .program-head h2 { margin: 0; font: 500 clamp(1.9rem, 4vw, 2.6rem)/1 var(--display); letter-spacing: -0.015em; }
 .tally { margin: 0; font: italic 400 1.05rem/1.2 var(--display); color: var(--c-accent); }
+.program-head .hint { flex-basis: 100%; margin: 4px 0 0; color: var(--c-muted); font-size: 0.92rem; }
+@media (hover: none) { .hint .mouse { display: none; } }
 
 .family { margin-top: 30px; }
 .family h3 {
@@ -213,8 +215,8 @@ body:not(.playing) .timeline.running { opacity: 0.55; transition: opacity 0.6s; 
   position: relative;
   display: grid;
   grid-template-columns: 8px minmax(0, 1fr) auto;
-  grid-template-rows: auto 1fr auto;
-  grid-template-areas: 'meter name count' 'meter seats seats' 'modes modes modes';
+  grid-template-rows: auto 1fr;
+  grid-template-areas: 'meter name sect' 'meter seats seats';
   gap: 14px;
   padding: 16px 16px 14px;
   border: 1px solid var(--c-line);
@@ -251,23 +253,41 @@ body:not(.playing) .timeline.running { opacity: 0.55; transition: opacity 0.6s; 
 .strip-name h4 { margin: 0; font: 500 1.55rem/1.05 var(--display); letter-spacing: -0.01em; color: var(--c-ink); }
 .strip-name p { margin: 4px 0 0; font: 500 0.68rem/1 var(--sans); letter-spacing: 0.2em; text-transform: uppercase; color: color-mix(in srgb, var(--ic) 60%, var(--c-ink)); }
 
-.count { grid-area: count; display: flex; align-items: center; gap: 4px; align-self: start; }
-.count output { min-width: 1.6ch; text-align: center; font: 500 1.3rem/1 var(--display); display: inline-block; }
+/* section toggle: Play all while everyone rests, Stop once anyone plays; hidden for a lone player */
+.sect {
+  grid-area: sect; align-self: start;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-width: 6.4rem; min-height: 32px; padding: 0 14px 0 11px;
+  font: 500 0.66rem/1 var(--sans); letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--c-ink);
+  background: var(--well); border: 1px solid var(--line-strong); border-radius: 999px;
+  transition: border-color 0.25s, color 0.25s;
+}
+.sect[hidden] { display: none; }
+.sect svg { width: 12px; height: 12px; color: var(--ic); }
+.sect:hover { border-color: var(--c-accent); color: var(--c-accent); }
+.sect.on { border-color: color-mix(in srgb, var(--ic) 55%, transparent); }
+
+/* add / remove players: a small stepper trailing the last chip */
+.count {
+  display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; padding: 2px;
+  border: 1px solid var(--c-line); border-radius: 999px; background: var(--well);
+}
 .step {
   position: relative;
   display: grid; place-items: center;
-  width: 30px; height: 30px; padding: 0;
-  font-size: 15px;
-  border: 1px solid var(--line-strong); border-radius: 50%;
-  background: var(--well); color: var(--c-ink);
-  transition: border-color 0.25s, background-color 0.25s, color 0.25s;
+  width: 28px; height: 28px; padding: 0;
+  font-size: 14px;
+  border: 0; border-radius: 50%;
+  background: none; color: var(--c-muted);
+  transition: background-color 0.25s, color 0.25s;
 }
-.step::after { content: ''; position: absolute; inset: -7px; }
-.step:hover:not(:disabled) { border-color: var(--c-accent); color: var(--c-accent); }
+.step::after { content: ''; position: absolute; inset: -6px -1px; }
+.step:hover:not(:disabled) { color: var(--c-accent); background: var(--c-surface-2); }
 
 /* ---------- players ---------- */
-.seats { grid-area: seats; display: flex; flex-wrap: wrap; gap: 12px 10px; min-height: 84px; align-content: flex-start; }
-.seat { --d: 0ms; display: grid; justify-items: center; gap: 6px; scroll-margin: 96px 0 24px; }
+.seats { grid-area: seats; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 10px; min-height: 54px; align-content: flex-start; }
+.seat { --d: 0ms; display: grid; scroll-margin: 96px 0 24px; }
 .chip {
   --p: 0;
   position: relative;
@@ -303,6 +323,8 @@ body:not(.playing) .timeline.running { opacity: 0.55; transition: opacity 0.6s; 
   opacity: 0;
   transition: opacity 0.4s var(--d);
 }
+/* plays once: dashed rim at rest, an arc filling up while it plays */
+.seat.once .chip { border-style: dashed; border-color: color-mix(in srgb, var(--ic) 80%, transparent); }
 .seat.once .chip .ring {
   background: conic-gradient(var(--ic) calc(var(--p) * 1turn), color-mix(in srgb, var(--ic) 22%, transparent) 0);
 }
@@ -311,53 +333,6 @@ body:not(.playing) .timeline.running { opacity: 0.55; transition: opacity 0.6s; 
 .chip.on .fill { opacity: 1; transform: scale(1); }
 .chip.on .ring { opacity: 1; }
 .seat.selected .chip { outline: 2px solid var(--c-accent); outline-offset: 8px; }
-
-.looptog {
-  display: inline-flex; align-items: center; gap: 4px;
-  min-height: 24px; padding: 3px 8px 3px 6px;
-  font: 500 0.62rem/1 var(--sans); letter-spacing: 0.16em; text-transform: uppercase;
-  color: var(--c-muted);
-  background: transparent; border: 1px solid transparent; border-radius: 999px;
-  transition: color 0.25s, border-color 0.25s, background-color 0.25s;
-}
-.looptog svg { font-size: 12px; }
-.looptog:hover { color: var(--c-ink); border-color: var(--c-line); }
-.seat:not(.once) .looptog { color: color-mix(in srgb, var(--ic) 60%, var(--c-ink)); }
-.seat.once .looptog { color: var(--c-accent); border-color: color-mix(in srgb, var(--c-accent) 35%, transparent); }
-
-/* ---------- section modes: segmented control with gliding indicator ---------- */
-.modes {
-  grid-area: modes;
-  align-self: end;
-  position: relative;
-  display: flex;
-  padding: 3px;
-  border: 1px solid var(--c-line);
-  border-radius: 999px;
-  background: var(--well);
-}
-.modes button {
-  position: relative; z-index: 1;
-  flex: 1 1 auto;
-  min-height: 32px; padding: 0 8px;
-  white-space: nowrap;
-  font: 500 0.66rem/1 var(--sans); letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--c-muted);
-  background: none; border: 0; border-radius: 999px;
-  transition: color 0.35s;
-}
-.modes button:hover { color: var(--c-ink); }
-.modes button[aria-pressed=true] { color: var(--c-accent-ink); }
-.modes .ind {
-  position: absolute; left: 0; top: 3px; bottom: 3px; width: 0;
-  border-radius: 999px;
-  background: linear-gradient(180deg, var(--accent-hi), var(--c-accent));
-  box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--ic) 60%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.5);
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-.modes.has .ind { opacity: 1; }
-.modes .ind.glide { transition: transform 0.5s var(--ease-quint), width 0.5s var(--ease-quint), opacity 0.3s; }
 
 /* ---------- small screens ---------- */
 @media (max-width: 760px) {
@@ -372,7 +347,6 @@ body:not(.playing) .timeline.running { opacity: 0.55; transition: opacity 0.6s; 
   .cell { padding: 0 1px; }
 }
 @media (max-width: 400px) {
-  .modes button { padding: 0 5px; letter-spacing: 0.06em; font-size: 0.62rem; }
   .strip { padding: 14px 12px 12px; gap: 12px; }
 }
 

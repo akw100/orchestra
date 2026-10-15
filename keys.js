@@ -21,8 +21,8 @@ const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const emit = (name, detail) => window.dispatchEvent(new CustomEvent(name, { detail }));
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
-const MODES = { all: 'All', most: 'Most', allbutone: 'All but one', solo: 'Solo', none: 'None' };
-const DIGIT_MODE = { 1: 'all', 2: 'most', 3: 'allbutone', 4: 'solo', 5: 'none', 0: 'none' };
+const MODES = { all: 'All', solo: 'Solo', none: 'None' };
+const DIGIT_MODE = { 1: 'all', 2: 'solo', 3: 'none', 0: 'none' };
 const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const RESERVED = new Set(['L']); // plain L = loop
 const SHIFT_KEYS = { T: 'theater', L: 'theme' }; // Shift+T stage view, Shift+L house lights (light/dark)
@@ -414,7 +414,7 @@ function buildSheet() {
     if (c === 'L') return capHtml('KeyL', 'L', 'Loop / once', { shift: sh, cls: 'act' });
     return capHtml(`Key${c}`, c, id ? nameOf(id) : '', { shift: sh, hue: id ? O.byId[id].hue : null, dim: !id && !sh });
   };
-  const digit = (d) => capHtml(`Digit${d}`, d, DIGIT_MODE[d] ? MODES[DIGIT_MODE[d]].replace('All but one', 'All but 1') : '', { dim: !DIGIT_MODE[d], cls: DIGIT_MODE[d] ? 'mode' : '' });
+  const digit = (d) => capHtml(`Digit${d}`, d, DIGIT_MODE[d] ? MODES[DIGIT_MODE[d]] : '', { dim: !DIGIT_MODE[d], cls: DIGIT_MODE[d] ? 'mode' : '' });
   const rows = [
     capHtml('Escape', 'Esc', 'Back', { w: 1.25, cls: 'act' }),
     [capHtml('Backquote', '`', 'Mode', { cls: 'act' }), ...'1234567890'.split('').map(digit), capHtml('Minus', '−', 'Player', { cls: 'act' }), capHtml('Equal', '+', 'Player', { cls: 'act' }), capHtml('Backspace', '', '', { w: 1.6, dim: true })].join(''),
@@ -444,7 +444,7 @@ function buildSheet() {
         <section><h3>Sections</h3><ul class="k-sections">${sections}</ul></section>
         <section><h3>Families</h3><ul class="k-fams">${fams}</ul></section>
         <section><h3>Who plays</h3><ul>
-          <li>${k('1')}<span>All</span></li><li>${k('2')}<span>Most</span></li><li>${k('3')}<span>All but one</span></li><li>${k('4')}<span>Solo</span></li><li>${k('5')}<span>None</span></li></ul></section>
+          <li>${k('1')}<span>All</span></li><li>${k('2')}<span>Solo</span></li><li>${k('3')}<span>None</span></li></ul></section>
         <section><h3>Players &amp; time</h3><ul>
           <li>${k('Enter')}<span>Play / stop</span></li><li>${k('⇧Enter')}<span>Play once</span></li><li>${k('L')}<span>Loop or once</span></li>
           <li>${k('+')}${k('−')}<span>Add / remove player</span></li><li>${k('[')}${k(']')}<span>Slower / faster (⇧ by 10)</span></li>
