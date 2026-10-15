@@ -529,8 +529,7 @@ function drawFig(f, now) {
   g.globalAlpha = f.appear;
   drawFloorRing(f, P_);
   if (!reduced && r > 0.01) g.rotate(Math.sin(T * 1.7 + f.sway) * 0.022 * r);
-  (POSE_DRAW[f.pose] || POSE_DRAW.choir)(f, L, r, lift, P_, now);
-  g.restore();
+  try { (POSE_DRAW[f.pose] || POSE_DRAW.choir)(f, L, r, lift, P_, now); } finally { g.restore(); }
 }
 
 const POSE_DRAW = {
@@ -620,11 +619,11 @@ const POSE_DRAW = {
     if (isTb && br > 0) { const sl = lerp(-40, -26, ((f.midi % 12) / 11)); line(-4, by + 4, -4, sl, 2, C.brass[L]); line(4, by + 4, 4, sl, 2, C.brass[L]); line(-4, sl, 4, sl, 2, C.brass[L]); }
     arm(-16, sy, -7, hy, -6, L); arm(16, sy, 7, hy, 6, L);
     hand(f, -7, hy, L); hand(f, 7, hy, L);
-    if (br > 0.5) {
+    if (br > 1) {
       if (f.flash > 0.02) { g.globalCompositeOperation = TH.add; g.globalAlpha = f.appear * f.flash * 0.9; g.drawImage(WARM, bx - 30, by - 30, 60, 60); g.globalCompositeOperation = 'source-over'; g.globalAlpha = f.appear; }
       g.fillStyle = C.brass[Math.min(10, L + Math.round(f.flash * 3))]; g.beginPath(); g.arc(bx, by, br, 0, TAU); g.fill();
       g.fillStyle = C.copper[Math.max(0, L - 4)]; g.beginPath(); g.arc(bx, by, br * 0.55, 0, TAU); g.fill();
-      g.strokeStyle = C.brass[10]; g.globalAlpha = f.appear * (0.3 + f.lit * 0.6); g.lineWidth = 1; g.beginPath(); g.arc(bx, by, br - 0.6, Math.PI * 1.1, Math.PI * 1.7); g.stroke(); g.globalAlpha = f.appear;
+      g.strokeStyle = C.brass[10]; g.globalAlpha = f.appear * (0.3 + f.lit * 0.6); g.lineWidth = 1; g.beginPath(); g.arc(bx, by, Math.max(0.1, br - 0.6), Math.PI * 1.1, Math.PI * 1.7); g.stroke(); g.globalAlpha = f.appear;
     }
   },
   horn(f, L, r, lift, P_) {
