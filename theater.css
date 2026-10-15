@@ -1,0 +1,468 @@
+/* Theater mode ("Stage view"): proscenium, valance, velvet curtains, footlights, follow-spots.
+   Owned by theater.js. Every decoration layer is pointer-events: none so clicks reach the stage canvas.
+   Colors come from the shared theme tokens (theme.css); fallbacks are only for running without it. */
+
+/* ---------- tokens (evening by default) ---------- */
+.th, .th-bar, .th-toggle, .th-house {
+  --th-velvet: var(--velvet, #6d0f1e);
+  --th-bg: var(--bg, #0f0d14);
+  --th-surface: var(--surface, #1a1721);
+  --th-ink: var(--ink, #f3ede4);
+  --th-ink-muted: var(--ink-muted, #a59e94);
+  --th-accent: var(--accent, #e8b04a);
+  --th-accent-ink: var(--accent-ink, #1a1205);
+  --th-glow: var(--glow, #ffcf7a);
+  --th-shadow: var(--shadow, rgba(0, 0, 0, 0.55));
+
+  /* gilt is a material, not a theme color: it stays gold in both themes */
+  --th-gold-hi: #fff2c4;
+  --th-gold: #dcaa48;
+  --th-gold-mid: #b07d24;
+  --th-gold-lo: #6b4510;
+  --th-gold-deep: #3d2507;
+
+  --th-wall: color-mix(in oklab, var(--th-velvet) 34%, #080406);
+  --th-wall-hi: color-mix(in oklab, var(--th-velvet) 55%, #1a0c0e);
+  --th-wood: #24120a;
+  --th-wood-lo: #0d0603;
+  --th-house: #050304;
+  --th-house-a: 0.94;
+  --th-beam: 255 232 196;
+  --th-beam-a: 0.2;
+  --th-beam-blend: screen;
+  --th-vig: rgba(0, 0, 0, 0.62);
+  --th-lamp: 255 196 120;
+  --th-lamp-a: 1;
+  --th-mote: 255 240 210;
+
+  --th-ease-curtain: cubic-bezier(0.65, 0, 0.25, 1);
+  --th-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* matinee: daylight through the house, ivory plaster, softer beams */
+:root[data-theme="light"] :is(.th, .th-bar, .th-toggle, .th-house) {
+  --th-wall: color-mix(in oklab, var(--th-bg) 40%, #e6d6b8);
+  --th-wall-hi: color-mix(in oklab, var(--th-bg) 30%, #f4ead6);
+  --th-wood: #5b3518;
+  --th-wood-lo: #2c180a;
+  --th-house: color-mix(in oklab, var(--th-bg) 35%, #3a2a1e);
+  --th-house-a: 0.9;
+  --th-beam: 255 246 226;
+  --th-beam-a: 0.24;
+  --th-vig: rgba(70, 40, 14, 0.3);
+  --th-lamp: 255 210 150;
+  --th-lamp-a: 0.75;
+  --th-mote: 255 250 236;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) :is(.th, .th-bar, .th-toggle, .th-house) {
+    --th-wall: color-mix(in oklab, var(--th-bg) 40%, #e6d6b8);
+    --th-wall-hi: color-mix(in oklab, var(--th-bg) 30%, #f4ead6);
+    --th-wood: #5b3518;
+    --th-wood-lo: #2c180a;
+    --th-house: color-mix(in oklab, var(--th-bg) 35%, #3a2a1e);
+    --th-house-a: 0.9;
+    --th-beam: 255 246 226;
+    --th-beam-a: 0.24;
+    --th-vig: rgba(70, 40, 14, 0.3);
+    --th-lamp: 255 210 150;
+    --th-lamp-a: 0.75;
+    --th-mote: 255 250 236;
+  }
+}
+
+/* ---------- page state ---------- */
+html.th-active, html.th-active body { overflow: hidden; }
+
+.th-house {
+  position: fixed; inset: 0; z-index: 999; pointer-events: none;
+  background: var(--th-house); opacity: 0;
+  transition: opacity 0.55s ease;
+}
+html.th-active .th-house { opacity: var(--th-house-a); }
+
+/* the stage container leaves the page and fills the viewport */
+html.th-active #stage-wrap.th-on {
+  position: fixed; inset: 0; z-index: 1000;
+  width: auto; height: 100vh; height: 100dvh; min-height: 0; max-width: none;
+  margin: 0; border-radius: 0; border: 0; box-shadow: none;
+  background: var(--th-wood-lo);
+  isolation: isolate;
+}
+html.th-active #stage-wrap.th-on > canvas { width: 100%; height: 100%; }
+
+.th-placeholder { display: block; }
+
+/* ---------- inline "Stage view" button ---------- */
+.th-toggle {
+  position: absolute; top: 12px; right: 12px; z-index: 6;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 14px 7px 11px; border-radius: 999px;
+  font: 500 0.78rem/1 'Jost', system-ui, sans-serif; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--th-ink);
+  background: color-mix(in oklab, var(--th-surface) 72%, transparent);
+  border: 1px solid color-mix(in oklab, var(--th-gold) 55%, transparent);
+  box-shadow: 0 6px 18px -8px var(--th-shadow);
+  backdrop-filter: blur(8px) saturate(1.2); -webkit-backdrop-filter: blur(8px) saturate(1.2);
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s var(--th-ease-out);
+}
+.th-toggle svg { width: 18px; height: 18px; color: var(--th-gold); transition: transform 0.4s var(--th-ease-out); }
+.th-toggle:hover { background: color-mix(in oklab, var(--th-surface) 92%, transparent); border-color: var(--th-gold); }
+.th-toggle:hover svg { transform: scaleX(1.18); }
+.th-toggle:active { transform: translateY(1px); }
+.th-toggle:focus-visible { outline: 2px solid var(--th-gold); outline-offset: 3px; }
+#stage-wrap.th-on .th-toggle { display: none; }
+
+/* ---------- decoration root ---------- */
+.th {
+  position: absolute; inset: 0; z-index: 4; pointer-events: none; overflow: hidden;
+  display: none;
+  --side: clamp(12px, 3.4vw, 60px);
+  --top: clamp(16px, 4.2vh, 46px);
+  --lip: clamp(34px, 7.5vh, 70px);
+  --valance: clamp(50px, 12.5vh, 124px);
+  --swag: clamp(88px, 15vw, 210px);
+  --arch: min(15vh, 120px);
+  --lvl: 0;
+  --gather: 0.17;
+}
+#stage-wrap.th-on .th { display: block; }
+.th > * { position: absolute; }
+.th-stagebox { top: var(--top); left: var(--side); right: var(--side); bottom: var(--lip); }
+
+/* soft vignette over the hall, under the drapes */
+.th-vignette {
+  inset: 0;
+  background: radial-gradient(ellipse 75% 70% at 50% 58%, transparent 52%, var(--th-vig) 100%);
+}
+
+/* ---------- follow-spots + dust ---------- */
+.th-beams { overflow: hidden; }
+.th-beam {
+  top: -4%; left: calc(var(--x) - 50%); width: 100%; height: 110%;
+  transform-origin: 50% 0; transform: rotate(var(--a0, 0deg));
+  mix-blend-mode: var(--th-beam-blend);
+  opacity: calc(0.42 + var(--lvl) * 0.58);
+  background: linear-gradient(to bottom, rgb(var(--th-beam) / 0.02), rgb(var(--th-beam) / var(--th-beam-a)) 70%, rgb(var(--th-beam) / calc(var(--th-beam-a) * 1.3)));
+  -webkit-mask-image: conic-gradient(from 180deg at 50% 0, #000 0deg 7deg, transparent 14deg 346deg, #000 353deg), linear-gradient(to bottom, transparent 0, #000 24%);
+  -webkit-mask-composite: source-in;
+  mask-image: conic-gradient(from 180deg at 50% 0, #000 0deg 7deg, transparent 14deg 346deg, #000 353deg), linear-gradient(to bottom, transparent 0, #000 24%);
+  mask-composite: intersect;
+  transition: opacity 0.25s linear;
+}
+.th-pool {
+  left: 50%; bottom: 7%; width: 56%; height: 14%; transform: translateX(-50%);
+  background: radial-gradient(ellipse 50% 50% at 50% 50%, rgb(var(--th-beam) / calc(var(--th-beam-a) * 2.4)), transparent 72%);
+}
+.th-beam i {
+  position: absolute; left: var(--mx); top: var(--my);
+  width: var(--ms); height: var(--ms); border-radius: 50%;
+  background: rgb(var(--th-mote));
+  box-shadow: 0 0 calc(var(--ms) * 2) rgb(var(--th-mote) / 0.7);
+  opacity: 0;
+  animation: th-mote var(--md) linear var(--mdel) infinite;
+}
+@keyframes th-mote {
+  0% { transform: translate(0, 0); opacity: 0; }
+  15% { opacity: 0.9; }
+  50% { transform: translate(var(--mdx), -38px); opacity: 0.35; }
+  80% { opacity: 0.85; }
+  100% { transform: translate(calc(var(--mdx) * -0.6), -76px); opacity: 0; }
+}
+
+/* ---------- light leaking through the seam as the curtain parts ---------- */
+.th-seam {
+  top: var(--top); bottom: var(--lip); left: 50%; width: min(220px, 40vw); margin-left: max(-110px, -20vw);
+  background:
+    linear-gradient(90deg, transparent, rgb(var(--th-beam) / 0.95) 50%, transparent),
+    radial-gradient(ellipse 50% 40% at 50% 85%, rgb(var(--th-lamp) / 0.9), transparent);
+  mix-blend-mode: screen; opacity: 0; transform: scaleX(0.15);
+  z-index: 3;
+}
+
+/* ---------- main curtains ---------- */
+.th-curtain {
+  top: var(--top); bottom: var(--lip);
+  width: calc((100% - 2 * var(--side)) / 2 + 14px);
+  z-index: 2; pointer-events: none;
+  filter: drop-shadow(0 0 18px rgba(0, 0, 0, 0.45));
+}
+.th-l { left: var(--side); transform-origin: 0 50%; }
+.th-r { right: var(--side); transform-origin: 100% 50%; }
+.th.is-closed .th-curtain { pointer-events: auto; cursor: pointer; }
+
+.th-fabric {
+  position: absolute; inset: 0;
+  transform-origin: 50% 0;
+  --v: var(--th-velvet);
+  --v-lo: color-mix(in oklab, var(--v) 45%, #000);
+  --v-hi: color-mix(in oklab, var(--v) 72%, #ffd9c9);
+  background:
+    /* footlight warmth from below, shadow from the fly loft above */
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent 16%, transparent 64%, rgb(var(--th-lamp) / calc(0.06 + var(--lvl) * 0.16)) 92%, rgba(0, 0, 0, 0.35)),
+    /* irregular folds: two periods that never line up */
+    repeating-linear-gradient(90deg, transparent 0 4px, rgba(0, 0, 0, 0.32) 19px, transparent 34px, rgba(255, 220, 210, 0.07) 44px, transparent 57px),
+    repeating-linear-gradient(90deg, var(--v-lo) 0, var(--v) 22px, var(--v-hi) 41px, var(--v) 58px, var(--v-lo) 83px, color-mix(in oklab, var(--v) 70%, #000) 97px, var(--v-lo) 109px);
+}
+.th-r .th-fabric { background-position: 0 0, 31px 0, 53px 0; }
+/* hem along the leading edge */
+.th-fabric::before {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 16px;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.45), color-mix(in oklab, var(--th-velvet) 60%, #ffd2c0) 55%, rgba(0, 0, 0, 0.5));
+}
+.th-l .th-fabric::before { right: 0; }
+.th-r .th-fabric::before { left: 0; }
+/* bullion fringe */
+.th-fabric::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: clamp(14px, 2.6vh, 24px);
+  background:
+    linear-gradient(to bottom, var(--th-gold-lo), var(--th-gold-hi) 18%, var(--th-gold) 30%, transparent 31%),
+    repeating-linear-gradient(90deg, var(--th-gold) 0 2px, var(--th-gold-hi) 2px 3px, var(--th-gold-mid) 3px 5px, var(--th-gold-lo) 5px 6px);
+  -webkit-mask-image: radial-gradient(ellipse 5px 100% at 50% 0, #000 96%, transparent 100%), linear-gradient(#000, #000);
+  -webkit-mask-size: 11px 100%, 100% 32%;
+  -webkit-mask-repeat: repeat-x, no-repeat;
+  mask-image: radial-gradient(ellipse 5px 100% at 50% 0, #000 96%, transparent 100%), linear-gradient(#000, #000);
+  mask-size: 11px 100%, 100% 32%;
+  mask-repeat: repeat-x, no-repeat;
+}
+.th.is-swaying .th-fabric { animation: th-sway 7.5s ease-in-out infinite alternate; }
+.th.is-swaying .th-r .th-fabric { animation-duration: 8.6s; animation-delay: -2.4s; }
+@keyframes th-sway {
+  from { transform: skewX(-0.5deg); }
+  to { transform: skewX(0.6deg); }
+}
+
+/* gold rope tiebacks with tassels (appear once the curtain is gathered) */
+.th-tie {
+  top: calc(var(--top) + (100% - var(--top) - var(--lip)) * 0.555);
+  height: 12px;
+  width: calc(((100% - 2 * var(--side)) / 2 + 14px) * var(--gather) * 0.62);
+  z-index: 2;
+  background:
+    repeating-linear-gradient(60deg, var(--th-gold-lo) 0 2px, var(--th-gold-hi) 2px 4px, var(--th-gold) 4px 7px),
+    var(--th-gold);
+  border-radius: 6px;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+}
+.th-tie-l { left: var(--side); transform-origin: 0 50%; }
+.th-tie-r { right: var(--side); transform-origin: 100% 50%; }
+.th-tie::after {
+  content: ""; position: absolute; top: 6px; width: 14px; height: clamp(34px, 7vh, 54px);
+  background:
+    radial-gradient(circle at 50% 7px, var(--th-gold-hi) 0 3px, var(--th-gold) 5px, var(--th-gold-lo) 7px, transparent 7.5px),
+    linear-gradient(to bottom, transparent 13px, var(--th-gold-lo) 13px 15px, transparent 15px),
+    repeating-linear-gradient(90deg, var(--th-gold) 0 1.5px, var(--th-gold-lo) 1.5px 2.5px) 0 15px / 100% 100% no-repeat;
+  -webkit-mask-image: linear-gradient(to bottom, #000 14px, transparent 14px), radial-gradient(ellipse 7px 100% at 50% 14px, #000 98%, transparent);
+  mask-image: linear-gradient(to bottom, #000 14px, transparent 14px), radial-gradient(ellipse 7px 100% at 50% 14px, #000 98%, transparent);
+  transform-origin: 50% 0; animation: th-tassel 3.2s ease-in-out infinite alternate;
+}
+.th-tie-l::after { right: -6px; }
+.th-tie-r::after { left: -6px; }
+@keyframes th-tassel { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+
+/* curtain-call spot on the closed curtain */
+.th-callspot {
+  top: var(--top); bottom: var(--lip); left: 50%; width: min(70vw, 620px); margin-left: max(-35vw, -310px);
+  z-index: 3; opacity: 0;
+  display: grid; place-items: end center; padding-bottom: 9vh;
+  background: radial-gradient(ellipse 50% 46% at 50% 58%, rgb(var(--th-beam) / 0.34), rgb(var(--th-beam) / 0.1) 55%, transparent 72%);
+  transition: opacity 0.9s ease;
+}
+.th-callspot p {
+  margin: 0; padding: 0 16px; text-align: center;
+  font: italic 500 clamp(0.95rem, 2.2vw, 1.25rem)/1.3 'Bodoni Moda', 'Didot', Georgia, serif;
+  color: var(--th-gold-hi); letter-spacing: 0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 18px rgba(0, 0, 0, 0.6);
+  opacity: 0; transform: translateY(6px);
+  transition: opacity 0.6s ease 0.5s, transform 0.8s var(--th-ease-out) 0.5s;
+}
+.th-callspot p b { font-style: normal; font-weight: 700; letter-spacing: 0.06em; }
+.th.is-call .th-callspot { opacity: 1; }
+.th.is-call .th-callspot p { opacity: 1; transform: none; }
+
+/* petals thrown from the house */
+.th-petals { inset: 0; z-index: 4; overflow: hidden; }
+.th-petals i {
+  position: absolute; top: -24px; left: var(--px);
+  width: var(--pw); height: calc(var(--pw) * 1.35);
+  border-radius: 70% 0 70% 0;
+  background: linear-gradient(135deg, var(--pc), color-mix(in oklab, var(--pc) 55%, #000));
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.25);
+  animation: th-fall var(--pd) cubic-bezier(0.35, 0.1, 0.6, 1) var(--pdel) forwards;
+  opacity: 0;
+}
+@keyframes th-fall {
+  0% { opacity: 0; transform: translate(0, 0) rotate(0deg); }
+  8% { opacity: 1; }
+  35% { transform: translate(var(--pdx), 34vh) rotate(calc(var(--pr) * 0.4)); }
+  70% { transform: translate(calc(var(--pdx) * -0.5), 66vh) rotate(calc(var(--pr) * 0.8)); }
+  92% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(var(--pdx) * 0.3), calc(100vh - var(--lip) - 10px)) rotate(var(--pr)); }
+}
+
+/* ---------- valance: swagged festoons with fringe and tassels ---------- */
+.th-valance {
+  top: var(--top); left: var(--side); right: var(--side); height: var(--valance);
+  z-index: 5;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.5));
+}
+.th-valance > div { position: absolute; inset: 0; }
+.th-swag-mask {
+  -webkit-mask-image: linear-gradient(#000, #000), radial-gradient(ellipse 50% 100% at 50% 0, #000 97%, transparent 100%);
+  -webkit-mask-size: 100% 46%, var(--swag) 100%;
+  -webkit-mask-position: 0 0, center top;
+  -webkit-mask-repeat: no-repeat, repeat-x;
+  mask-image: linear-gradient(#000, #000), radial-gradient(ellipse 50% 100% at 50% 0, #000 97%, transparent 100%);
+  mask-size: 100% 46%, var(--swag) 100%;
+  mask-position: 0 0, center top;
+  mask-repeat: no-repeat, repeat-x;
+}
+.th-fringe {
+  transform: translateY(clamp(9px, 1.7vh, 15px));
+  background: repeating-linear-gradient(90deg, var(--th-gold) 0 2px, var(--th-gold-hi) 2px 3px, var(--th-gold-mid) 3px 5px, var(--th-gold-lo) 5px 6px);
+}
+.th-swags {
+  --v: var(--th-velvet);
+  background:
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.5), transparent 30%),
+    repeating-radial-gradient(ellipse 120% 100% at 50% -42%, color-mix(in oklab, var(--v) 50%, #000) 0, var(--v) 9px, color-mix(in oklab, var(--v) 74%, #ffd9c9) 15px, var(--v) 21px, color-mix(in oklab, var(--v) 50%, #000) 28px) center top / var(--swag) 100% repeat-x,
+    var(--v);
+}
+.th-swags::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 40%; height: 7px;
+  background: linear-gradient(to bottom, var(--th-gold-lo), var(--th-gold-hi) 40%, var(--th-gold) 60%, var(--th-gold-lo));
+  opacity: 0.85;
+}
+.th-tassels {
+  background:
+    linear-gradient(90deg, transparent calc(50% - 1.5px), var(--th-gold) calc(50% - 1.5px) calc(50% + 1.5px), transparent 0) calc(50% - var(--swag) / 2) 0 / var(--swag) 62% repeat-x,
+    radial-gradient(circle at 50% 66%, var(--th-gold-hi) 0 3px, var(--th-gold) 5px, var(--th-gold-lo) 7.5px, transparent 8px) calc(50% - var(--swag) / 2) 0 / var(--swag) 100% repeat-x,
+    radial-gradient(ellipse 7px 26% at 50% 70%, var(--th-gold) 0, var(--th-gold-mid) 70%, transparent 74%) calc(50% - var(--swag) / 2) 0 / var(--swag) 100% repeat-x;
+  transform: translateY(18%);
+}
+.th.is-shudder .th-valance { animation: th-shudder 0.9s var(--th-ease-out); }
+@keyframes th-shudder {
+  0% { transform: translateY(0); }
+  25% { transform: translateY(3px); }
+  55% { transform: translateY(-1px); }
+  100% { transform: translateY(0); }
+}
+
+/* ---------- footlight wash ---------- */
+.th-footwash {
+  left: var(--side); right: var(--side); bottom: var(--lip); height: 38%;
+  z-index: 6; mix-blend-mode: screen;
+  background: radial-gradient(ellipse 60% 100% at 50% 100%, rgb(var(--th-lamp) / calc((0.08 + var(--lvl) * 0.32) * var(--th-lamp-a))), transparent 70%);
+}
+
+/* ---------- proscenium arch: wall + gilded molding following the arch ---------- */
+.th-frame { inset: 0; z-index: 7; }
+.th-opening {
+  top: var(--top); left: var(--side); right: var(--side); bottom: var(--lip);
+  position: absolute;
+  border-radius: 50% 50% 0 0 / var(--arch) var(--arch) 0 0;
+  box-shadow:
+    inset 0 22px 34px -14px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 0 0 2px var(--th-gold-deep),
+    0 0 0 4px var(--th-gold-hi),
+    0 0 0 6px var(--th-gold),
+    0 0 0 8px var(--th-gold-lo),
+    0 0 0 10px var(--th-gold-mid),
+    0 0 0 11px var(--th-gold-hi),
+    0 0 0 13px var(--th-gold-lo),
+    0 0 0 calc(var(--side) * 0.5) var(--th-wall-hi),
+    0 0 0 calc(var(--side) * 0.5 + 2px) var(--th-gold-lo),
+    0 0 0 calc(var(--side) * 0.5 + 3px) var(--th-gold),
+    0 0 0 200vmax var(--th-wall);
+}
+.th-crest {
+  top: max(2px, calc(var(--top) - 30px)); left: 50%; width: clamp(64px, 9vw, 104px); height: auto;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.55));
+}
+.th-crest text { font-family: 'Bodoni Moda', 'Didot', Georgia, serif; font-weight: 700; }
+
+/* ---------- stage lip + footlights ---------- */
+.th-lip {
+  left: 0; right: 0; bottom: 0; height: var(--lip); z-index: 8;
+  background:
+    linear-gradient(to bottom, var(--th-gold-lo) 0, var(--th-gold-hi) 2px, var(--th-gold) 4px, var(--th-gold-lo) 6px, transparent 6px),
+    linear-gradient(to bottom, transparent 6px, rgba(0, 0, 0, 0.35) 6px, transparent 16px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 7px, rgba(0, 0, 0, 0.05) 7px 9px, transparent 9px 23px),
+    linear-gradient(to bottom, var(--th-wood), var(--th-wood-lo));
+  box-shadow: 0 -10px 30px -12px rgba(0, 0, 0, 0.7);
+}
+.th-lamps {
+  position: absolute; left: var(--side); right: var(--side); top: 6px; height: 100%;
+  display: flex; justify-content: space-evenly;
+}
+.th-lamp { position: relative; width: 26px; height: 12px; --l: 0; }
+/* the hood */
+.th-lamp::before {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(to bottom, #1b120c, #3a2a1c 60%, var(--th-gold-lo));
+  clip-path: polygon(0 100%, 12% 0, 88% 0, 100% 100%);
+  z-index: 1;
+}
+/* bulb + rising glow */
+.th-lamp::after {
+  content: ""; position: absolute; left: 50%; bottom: 100%;
+  width: clamp(70px, 9vw, 150px); height: clamp(60px, 16vh, 170px);
+  transform: translateX(-50%) scaleY(calc(0.6 + var(--l) * 0.6));
+  transform-origin: 50% 100%;
+  background:
+    radial-gradient(ellipse 12% 6% at 50% 100%, rgb(255 250 236), transparent),
+    radial-gradient(ellipse 50% 100% at 50% 100%, rgb(var(--th-lamp) / calc((0.22 + var(--l) * 0.7) * var(--th-lamp-a))), transparent 70%);
+  mix-blend-mode: screen;
+}
+
+/* ---------- floating mini-transport ---------- */
+.th-bar {
+  position: absolute; z-index: 20;
+  top: calc(clamp(16px, 4.2vh, 46px) + 10px); right: calc(clamp(12px, 3.4vw, 60px) + 12px);
+  display: none; align-items: center; gap: 2px; padding: 4px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--th-surface) 80%, transparent);
+  border: 1px solid color-mix(in oklab, var(--th-gold) 50%, transparent);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px) saturate(1.2); -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  transition: opacity 0.6s ease, transform 0.6s var(--th-ease-out);
+}
+#stage-wrap.th-on .th-bar { display: flex; }
+.th-bar.is-idle:not(:hover):not(:focus-within) { opacity: 0.38; }
+.th-bar button {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 36px; padding: 0 13px; border: 0; border-radius: 999px;
+  font: 500 0.74rem/1 'Jost', system-ui, sans-serif; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--th-ink); background: transparent; cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease, transform 0.15s ease;
+}
+.th-bar button:hover { background: color-mix(in oklab, var(--th-ink) 10%, transparent); }
+.th-bar button:active { transform: translateY(1px); }
+.th-bar button:focus-visible { outline: 2px solid var(--th-gold); outline-offset: 1px; }
+.th-bar svg { width: 15px; height: 15px; flex: none; }
+.th-bar .th-b-tutti { background: linear-gradient(180deg, var(--th-gold-hi), var(--th-gold) 55%, var(--th-gold-mid)); color: #2a1a04; font-weight: 600; }
+.th-bar .th-b-tutti:hover { background: linear-gradient(180deg, #fff8dc, var(--th-gold-hi) 50%, var(--th-gold)); }
+.th-bar kbd {
+  font: 500 0.64rem/1 'Jost', system-ui, sans-serif; letter-spacing: 0.08em;
+  padding: 3px 5px; border-radius: 4px; color: var(--th-ink-muted);
+  border: 1px solid color-mix(in oklab, var(--th-ink) 25%, transparent);
+}
+.th-bar .th-b-theme[hidden] { display: none; }
+@media (max-width: 560px) {
+  .th-bar span, .th-bar kbd { display: none; }
+  .th-bar button { width: 38px; padding: 0; justify-content: center; }
+  .th-toggle span { display: none; }
+  .th-toggle { padding: 8px; }
+}
+
+/* ---------- reduced motion: fades instead of sweeps ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .th-beam i, .th-petals { display: none; }
+  .th.is-swaying .th-fabric, .th-tie::after, .th.is-shudder .th-valance { animation: none; }
+  .th-lamp::after { transform: translateX(-50%); }
+  .th-house { transition-duration: 0.2s; }
+}
