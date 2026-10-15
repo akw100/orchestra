@@ -191,8 +191,7 @@ const clock = new THREE.Clock();
 let t = 0, beat = 0, bpm = 96, last = 0;
 const frame = { t: 0, dt: 0, level: 0, bands: { low: 0, mid: 0, high: 0 }, beat: 0, bpm, playing: 0, total: players.length, tutti: 0, theme: 'dark' };
 const stateEl = document.getElementById('state'); window.__h.frame = frame;
-function loop() {
-  const dt = Math.min(0.1, clock.getDelta());
+function tick(dt) {
   t += dt;
   if (playing) beat = (beat + dt * bpm / 60) % 16;
   const pulse = playing ? Math.exp(-(beat % 1) * 5) : 0;
@@ -201,10 +200,22 @@ function loop() {
   frame.playing = playing ? 24 : 0;
   for (const p of players) p.material.emissiveIntensity = 0.08 + 0.5 * pulse;
   dir.update(frame);
+}
+let paused = false;
+function loop() {
+  const dt = Math.min(0.1, clock.getDelta());
+  if (!paused) tick(dt);
   renderer.render(scene, camera);
   if (t - last > 0.25) { last = t; stateEl.textContent = JSON.stringify(dir.getState(), null, 0).replace(/,"/g, ',\n"'); }
   requestAnimationFrame(loop);
 }
+// test hooks: pause the clock and step deterministically (e.g. __h.advance(2.5) then screenshot)
+Object.assign(window.__h, {
+  pause(on = true) { paused = on; clock.getDelta(); },
+  advance(sec, dt = 1 / 60) { for (let i = 0, n = Math.round(sec / dt); i < n; i++) tick(dt); renderer.render(scene, camera); return dir.getState(); },
+  ui(on) { for (const id of ['ui', 'state', 'clicks']) document.getElementById(id).style.display = on ? '' : 'none'; },
+  setPlaying(on) { playing = on; playBtn.classList.toggle('on', on); },
+});
 requestAnimationFrame(loop);
 </script>
 </body>

@@ -33,10 +33,10 @@ const wrapPi = (a) => { a = (a + PI) % (2 * PI); if (a < 0) a += 2 * PI; return 
 const SHOT_DEFS = {
   overview:   { tx: 0,   ty: 1.0,  tz: -4.3, yaw: 0,     pitch: 0.21, w: 10.2, h: 4.4, fov: 38, dmin: 12,  dmax: 30 },
   strings:    { tx: 0,   ty: 0.95, tz: -2.1, yaw: 0.22,  pitch: 0.34, w: 6.3,  h: 2.4, fov: 36, dmin: 7.5, dmax: 20 },
-  winds:      { tx: 0,   ty: 1.45, tz: -5.6, yaw: -0.2,  pitch: 0.40, w: 4.2,  h: 1.8, fov: 34, dmin: 7,   dmax: 17 },
-  brass:      { tx: 0,   ty: 1.8,  tz: -7.2, yaw: 0.24,  pitch: 0.42, w: 5.2,  h: 2.0, fov: 34, dmin: 8,   dmax: 18 },
-  percussion: { tx: 5.2, ty: 2.0,  tz: -7.3, yaw: -0.48, pitch: 0.38, w: 2.9,  h: 1.6, fov: 34, dmin: 6.5, dmax: 14 },
-  drums:      { tx: 7.0, ty: 2.0,  tz: -5.5, yaw: -0.86, pitch: 0.32, w: 2.7,  h: 1.6, fov: 34, dmin: 6,   dmax: 13 },
+  winds:      { tx: 0,   ty: 1.4,  tz: -5.7, yaw: -0.2,  pitch: 0.47, w: 4.8,  h: 1.9, fov: 34, dmin: 8.5, dmax: 17 },
+  brass:      { tx: 0,   ty: 1.75, tz: -7.3, yaw: 0.24,  pitch: 0.53, w: 5.6,  h: 2.1, fov: 34, dmin: 9.5, dmax: 18 },
+  percussion: { tx: 5.2, ty: 2.0,  tz: -7.3, yaw: -0.48, pitch: 0.44, w: 4.0,  h: 1.8, fov: 34, dmin: 8.5, dmax: 15 },
+  drums:      { tx: 7.0, ty: 1.9,  tz: -5.6, yaw: -0.82, pitch: 0.38, w: 3.2,  h: 1.7, fov: 34, dmin: 8,   dmax: 14 },
   conductor:  { tx: 0,   ty: 1.42, tz: 0.9,  yaw: 2.76,  pitch: 0.05, w: 1.4,  h: 0.95, fov: 40, dmin: 2.3, dmax: 2.6 },
   audience:   { tx: 1.4, ty: -0.3, tz: 7.6,  yaw: -2.55, pitch: 0.36, w: 9,    h: 4,   fov: 42, dmin: 12,  dmax: 15 },
   // internal choreography framings (not public shot names)
@@ -157,6 +157,9 @@ export function createDirector(ctx) {
     const dyaw = wrapPi(to.yaw - from.yaw);
     cur.yaw = from.yaw + dyaw * e;
     cur.pitch = lerp(from.pitch, to.pitch, pe);
+    // swinging far around (house side <-> stage side): crane up over the players on the way
+    const swing = clamp((Math.abs(dyaw) - 1) / 1.4, 0, 1);
+    if (swing > 0) cur.pitch += swing * 0.55 * Math.sin(PI * e);
     // dolly out a little while arcing, then push back in: reads as one continuous crane/arc
     const dx = to.tx - from.tx, dz = to.tz - from.tz;
     const bump = s.bump * clamp(0.1 * Math.sqrt(dx * dx + dz * dz) + 0.22 * Math.abs(dyaw) * Math.min(from.dist, to.dist), 0, 4);
@@ -189,7 +192,7 @@ export function createDirector(ctx) {
   }
   const slotOf = (id) => (ptr[0].id === id ? ptr[0] : ptr[1].id === id ? ptr[1] : null);
   const activeCount = () => (ptr[0].id !== -1) + (ptr[1].id !== -1);
-  const rotK = (e) => (e.pointerType === 'touch' ? 0.0075 : 0.0052);
+  const rotK = (e) => (e.pointerType === 'touch' ? 0.007 : 0.0046);
 
   function onDown(e) {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -216,7 +219,7 @@ export function createDirector(ctx) {
     }
     if (!dragging) {
       if (Math.hypot(e.clientX - s.sx, e.clientY - s.sy) < DRAG_PX) return;
-      dragging = true; enterUser(); velYaw = velPitch = 0;
+      dragging = true; enterUser(); velYaw = velPitch = 0; lastMoveTs = e.timeStamp;
       try { canvas.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
     }
     s.x = e.clientX; s.y = e.clientY;
@@ -224,7 +227,8 @@ export function createDirector(ctx) {
     userRig.yaw -= dx * k; userRig.pitch += dy * k;
     const edt = Math.max(1 / 240, (e.timeStamp - lastMoveTs) / 1000);
     lastMoveTs = e.timeStamp;
-    velYaw = lerp(velYaw, (-dx * k) / edt, 0.35); velPitch = lerp(velPitch, (dy * k) / edt, 0.35);
+    velYaw = clamp(lerp(velYaw, (-dx * k) / edt, 0.35), -1.8, 1.8);
+    velPitch = clamp(lerp(velPitch, (dy * k) / edt, 0.35), -1.0, 1.0);
     userUntil = now + USER_HOLD;
   }
   function onUp(e) {
@@ -289,7 +293,8 @@ export function createDirector(ctx) {
   }
 
   // keep a camera position inside the hall and above heads
-  function clampPos(p, l) {
+  function clampPos(p, l) { // returns true when it had to move the point
+    const ox = p.x, oy = p.y, oz = p.z;
     if (p.z > B.zMax) {
       // crane up instead of backing through the house wall: same distance, steeper angle
       const dx = p.x - l.x, dy = p.y - l.y, dz = p.z - l.z;
@@ -300,6 +305,14 @@ export function createDirector(ctx) {
       } else p.z = B.zMax;
     }
     if (p.y > B.yMax) p.y = B.yMax;
+    // back wall / side walls: dolly in along the line of sight instead of sliding sideways,
+    // so the angle the user (or a shot) chose survives and the camera never ends up in a wing
+    const dx = p.x - l.x, dy = p.y - l.y, dz = p.z - l.z;
+    let s = 1;
+    if (p.z < B.zMin && dz < 0) s = Math.min(s, (B.zMin - l.z) / dz);
+    const hx0 = p.z < 0.4 ? B.stageX : B.houseX;
+    if (Math.abs(p.x) > hx0 && dx !== 0) s = Math.min(s, ((dx > 0 ? hx0 : -hx0) - l.x) / dx);
+    if (s < 1) { s = Math.max(0.05, s); p.x = l.x + dx * s; p.y = l.y + dy * s; p.z = l.z + dz * s; }
     if (p.z < B.zMin) p.z = B.zMin;
     const hx = p.z < 0.4 ? B.stageX : B.houseX;
     p.x = clamp(p.x, -hx, hx);
@@ -312,6 +325,7 @@ export function createDirector(ctx) {
       if (ang < 82 - 7 * tf) minY = Math.max(minY, 0.32 * tf + 1.95);
     }
     if (p.y < minY) p.y = minY;
+    return Math.abs(p.x - ox) + Math.abs(p.y - oy) + Math.abs(p.z - oz) > 0.01;
   }
 
   // ---------- frame state ----------
@@ -370,10 +384,12 @@ export function createDirector(ctx) {
     if (mode === 'user') {
       if (!dragging && !pinching) {
         userRig.yaw += velYaw * dt; userRig.pitch += velPitch * dt;
-        const k = Math.exp(-dt * 4.2); velYaw *= k; velPitch *= k;
+        const k = Math.exp(-dt * 5); velYaw *= k; velPitch *= k;
       }
-      userRig.yaw = clamp(userRig.yaw, userYaw0 - 1.9, userYaw0 + 1.9);
-      userRig.pitch = clamp(userRig.pitch, -0.1, 1.32);
+      // orbit limits: from the house side never swing round behind the orchestra
+      if (Math.abs(userYaw0) < 1.6) userRig.yaw = clamp(userRig.yaw, -1.05, 1.05);
+      else userRig.yaw = clamp(userRig.yaw, userYaw0 - 0.9, userYaw0 + 0.9);
+      userRig.pitch = clamp(userRig.pitch, 0.02, 1.32);
       userRig.dist += (zoomGoal - userRig.dist) * (1 - Math.exp(-dt * 10));
       copyRig(cur, userRig);
       if (now > userUntil && !dragging && !pinching) goOverview(3.6);
@@ -416,7 +432,14 @@ export function createDirector(ctx) {
     const cp = Math.cos(goal.pitch);
     gl.set(goal.tx, goal.ty, goal.tz);
     gp.set(goal.tx + goal.dist * Math.sin(goal.yaw) * cp, goal.ty + goal.dist * Math.sin(goal.pitch), goal.tz + goal.dist * Math.cos(goal.yaw) * cp);
-    clampPos(gp, gl);
+    if (clampPos(gp, gl) && mode === 'user') {
+      // the user pushed into a wall/floor/heads: adopt the clamped view so nothing winds up past it
+      const dx = gp.x - gl.x, dy = gp.y - gl.y, dz = gp.z - gl.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (d > 0.5) {
+        userRig.yaw = Math.atan2(dx, dz); userRig.pitch = Math.asin(clamp(dy / d, -1, 1));
+        userRig.dist = d; if (zoomGoal > d) zoomGoal = d;
+      }
+    }
 
     // --- springs
     if (snap) {
