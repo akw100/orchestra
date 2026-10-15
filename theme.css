@@ -129,9 +129,9 @@ html.theme-fading *::after {
 
 /* ---------- the toggle: "Matinée | Evening" with a sun that sets into a moon ---------- */
 .orch-theme {
-  --tt-w: 58px;
-  --tt-h: 30px;
-  --tt-knob: 22px;
+  --tt-w: 64px;
+  --tt-h: 32px;
+  --tt-knob: 24px;
   --tt-travel: calc(var(--tt-w) - var(--tt-knob) - 8px);
   --tt-spring: cubic-bezier(.5, -0.45, .3, 1.45);
   position: fixed;

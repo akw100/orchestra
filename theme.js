@@ -19,7 +19,10 @@ function store(t) {
 }
 const systemTheme = () => (darkMq.matches ? 'dark' : 'light');
 
+let target = null; // theme requested but not painted yet (a View Transition paints on the next frame)
+
 export function getTheme() {
+  if (target) return target;
   const t = root.dataset.theme;
   return valid(t) ? t : (stored() || systemTheme());
 }
@@ -49,7 +52,7 @@ function originPoint(origin) {
 
 let fadeTimer = 0;
 function swap(t, origin) {
-  const update = () => { paint(t); announce(t); };
+  const update = () => { if (target === t) target = null; paint(t); announce(t); };
   if (calmMq.matches || document.visibilityState === 'hidden') { update(); return; }
 
   if (button) { button.classList.remove('is-flipping'); void button.offsetWidth; button.classList.add('is-flipping'); }
@@ -78,7 +81,8 @@ function swap(t, origin) {
 export function setTheme(t, { origin, persist = true } = {}) {
   if (!valid(t)) return getTheme();
   if (persist) store(t);
-  if (t === root.dataset.theme) { paint(t); return t; }
+  if (t === getTheme()) { if (!target) paint(t); return t; }
+  target = t;
   swap(t, origin);
   return t;
 }
@@ -126,7 +130,9 @@ if (document.body) mountToggle(); else addEventListener('DOMContentLoaded', moun
 paint(root.dataset.theme);
 announce(root.dataset.theme);
 
-// Follow the OS until the user picks a theme themselves.
-darkMq.addEventListener('change', (e) => { if (!stored()) setTheme(e.matches ? 'dark' : 'light', { persist: false }); });
+// Follow the OS until the user picks a theme themselves (also re-checked when the tab comes back into view).
+const followSystem = () => { if (!stored()) setTheme(systemTheme(), { persist: false }); };
+darkMq.addEventListener('change', followSystem);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') followSystem(); });
 // Keep several open tabs in step.
 addEventListener('storage', (e) => { if (e.key === KEY && valid(e.newValue)) setTheme(e.newValue, { persist: false }); });
