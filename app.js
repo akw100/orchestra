@@ -292,4 +292,15 @@ addEventListener('orch:select', (e) => {
   (chip || strip)?.scrollIntoView({ block: 'nearest', behavior: reduce.matches ? 'auto' : 'smooth' });
 });
 
+// ---------- split view: stage pinned beside the players (layout lives in stage.css) ----------
+const splitBtn = $('#split');
+const setSplit = (on) => {
+  document.body.classList.toggle('split', on);
+  splitBtn.setAttribute('aria-pressed', String(on));
+  $('span', splitBtn).textContent = on ? 'Stack view' : 'Split view';
+  try { localStorage.setItem('orch-split', on ? '1' : ''); } catch {}
+};
+splitBtn.addEventListener('click', () => setSplit(!document.body.classList.contains('split')));
+try { if (localStorage.getItem('orch-split')) setSplit(true); } catch {}
+
 update();
