@@ -123,7 +123,7 @@ html.th-active #stage-wrap.th-on > canvas { width: 100%; height: 100%; }
   --lip: clamp(34px, 7.5vh, 70px);
   --valance: clamp(50px, 12.5vh, 124px);
   --swag: clamp(88px, 15vw, 210px);
-  --arch: min(15vh, 120px);
+  --arch: min(15vh, 120px, 24vw);
   --lvl: 0;
   --gather: 0.17;
 }
@@ -140,19 +140,19 @@ html.th-active #stage-wrap.th-on > canvas { width: 100%; height: 100%; }
 /* ---------- follow-spots + dust ---------- */
 .th-beams { overflow: hidden; }
 .th-beam {
-  top: -4%; left: calc(var(--x) - 50%); width: 100%; height: 110%;
+  top: -4%; left: calc(var(--x) - 50%); width: 100%; height: 140%;
   transform-origin: 50% 0; transform: rotate(var(--a0, 0deg));
   mix-blend-mode: var(--th-beam-blend);
   opacity: calc(0.42 + var(--lvl) * 0.58);
   background: linear-gradient(to bottom, rgb(var(--th-beam) / 0.02), rgb(var(--th-beam) / var(--th-beam-a)) 70%, rgb(var(--th-beam) / calc(var(--th-beam-a) * 1.3)));
-  -webkit-mask-image: conic-gradient(from 180deg at 50% 0, #000 0deg 7deg, transparent 14deg 346deg, #000 353deg), linear-gradient(to bottom, transparent 0, #000 24%);
+  -webkit-mask-image: conic-gradient(from 180deg at 50% 0, #000 0deg 7deg, transparent 14deg 346deg, #000 353deg), linear-gradient(to bottom, transparent 0, #000 20%, #000 62%, transparent 74%);
   -webkit-mask-composite: source-in;
-  mask-image: conic-gradient(from 180deg at 50% 0, #000 0deg 7deg, transparent 14deg 346deg, #000 353deg), linear-gradient(to bottom, transparent 0, #000 24%);
+  mask-image: conic-gradient(from 180deg at 50% 0, #000 0deg 7deg, transparent 14deg 346deg, #000 353deg), linear-gradient(to bottom, transparent 0, #000 20%, #000 62%, transparent 74%);
   mask-composite: intersect;
   transition: opacity 0.25s linear;
 }
 .th-pool {
-  left: 50%; bottom: 7%; width: 56%; height: 14%; transform: translateX(-50%);
+  left: 50%; top: 58%; width: 60%; height: 11%; transform: translateX(-50%);
   background: radial-gradient(ellipse 50% 50% at 50% 50%, rgb(var(--th-beam) / calc(var(--th-beam-a) * 2.4)), transparent 72%);
 }
 .th-beam i {
@@ -186,7 +186,6 @@ html.th-active #stage-wrap.th-on > canvas { width: 100%; height: 100%; }
   top: var(--top); bottom: var(--lip);
   width: calc((100% - 2 * var(--side)) / 2 + 14px);
   z-index: 2; pointer-events: none;
-  filter: drop-shadow(0 0 18px rgba(0, 0, 0, 0.45));
 }
 .th-l { left: var(--side); transform-origin: 0 50%; }
 .th-r { right: var(--side); transform-origin: 100% 50%; }
@@ -200,7 +199,7 @@ html.th-active #stage-wrap.th-on > canvas { width: 100%; height: 100%; }
   --v-hi: color-mix(in oklab, var(--v) 72%, #ffd9c9);
   background:
     /* footlight warmth from below, shadow from the fly loft above */
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent 16%, transparent 64%, rgb(var(--th-lamp) / calc(0.06 + var(--lvl) * 0.16)) 92%, rgba(0, 0, 0, 0.35)),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent 16%, transparent 64%, rgb(var(--th-lamp) / 0.1) 92%, rgba(0, 0, 0, 0.35)),
     /* irregular folds: two periods that never line up */
     repeating-linear-gradient(90deg, transparent 0 4px, rgba(0, 0, 0, 0.32) 19px, transparent 34px, rgba(255, 220, 210, 0.07) 44px, transparent 57px),
     repeating-linear-gradient(90deg, var(--v-lo) 0, var(--v) 22px, var(--v-hi) 41px, var(--v) 58px, var(--v-lo) 83px, color-mix(in oklab, var(--v) 70%, #000) 97px, var(--v-lo) 109px);
@@ -354,7 +353,8 @@ html.th-active #stage-wrap.th-on > canvas { width: 100%; height: 100%; }
 .th-footwash {
   left: var(--side); right: var(--side); bottom: var(--lip); height: 38%;
   z-index: 6; mix-blend-mode: screen;
-  background: radial-gradient(ellipse 60% 100% at 50% 100%, rgb(var(--th-lamp) / calc((0.08 + var(--lvl) * 0.32) * var(--th-lamp-a))), transparent 70%);
+  background: radial-gradient(ellipse 60% 100% at 50% 100%, rgb(var(--th-lamp) / calc(0.4 * var(--th-lamp-a))), transparent 70%);
+  opacity: calc(0.2 + var(--lvl) * 0.8);
 }
 
 /* ---------- proscenium arch: wall + gilded molding following the arch ---------- */
@@ -379,7 +379,7 @@ html.th-active #stage-wrap.th-on > canvas { width: 100%; height: 100%; }
     0 0 0 200vmax var(--th-wall);
 }
 .th-crest {
-  top: max(2px, calc(var(--top) - 30px)); left: 50%; width: clamp(64px, 9vw, 104px); height: auto;
+  position: absolute; top: max(2px, calc(var(--top) - 30px)); left: 50%; width: clamp(64px, 9vw, 104px); height: auto;
   transform: translateX(-50%);
   filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.55));
 }
@@ -415,8 +415,9 @@ html.th-active #stage-wrap.th-on > canvas { width: 100%; height: 100%; }
   transform-origin: 50% 100%;
   background:
     radial-gradient(ellipse 12% 6% at 50% 100%, rgb(255 250 236), transparent),
-    radial-gradient(ellipse 50% 100% at 50% 100%, rgb(var(--th-lamp) / calc((0.22 + var(--l) * 0.7) * var(--th-lamp-a))), transparent 70%);
-  mix-blend-mode: screen;
+    radial-gradient(ellipse 50% 100% at 50% 100%, rgb(var(--th-lamp) / calc(0.92 * var(--th-lamp-a))), transparent 70%);
+  opacity: calc(0.25 + var(--l) * 0.75);
+  background-repeat: no-repeat;
 }
 
 /* ---------- floating mini-transport ---------- */
@@ -455,8 +456,6 @@ html.th-active #stage-wrap.th-on > canvas { width: 100%; height: 100%; }
 @media (max-width: 560px) {
   .th-bar span, .th-bar kbd { display: none; }
   .th-bar button { width: 38px; padding: 0; justify-content: center; }
-  .th-toggle span { display: none; }
-  .th-toggle { padding: 8px; }
 }
 
 /* ---------- reduced motion: fades instead of sweeps ---------- */

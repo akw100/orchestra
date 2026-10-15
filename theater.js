@@ -146,7 +146,7 @@ function layout() {
     b.querySelectorAll('i').forEach((m) => m.remove());
     const count = reduced() ? 0 : 14;
     for (let k = 0; k < count; k++) {
-      const f = rand(0.3, 0.95), spread = 100 * f * 1.1 * aspect * Math.tan((11 * Math.PI) / 180);
+      const f = rand(0.2, 0.7), spread = 100 * f * 1.4 * aspect * Math.tan((11 * Math.PI) / 180);
       const m = document.createElement('i');
       m.style.cssText = `--mx:${(50 + rand(-1, 1) * spread).toFixed(1)}%;--my:${(f * 100).toFixed(1)}%;--ms:${rand(1.2, 3).toFixed(1)}px;--md:${rand(7, 14).toFixed(1)}s;--mdel:${rand(-14, 0).toFixed(1)}s;--mdx:${rand(-22, 22).toFixed(0)}px`;
       b.append(m);
@@ -157,10 +157,14 @@ function layout() {
 // ---------- curtains ----------
 // Left panel outline, inner edge at x=100%; open = pinched at the tieback (58%) and flared at the floor.
 function shape(side, k) {
-  const pts = [[100, 0], [100 - 7 * k, 18], [100 - 24 * k, 38], [100 - 50 * k, 58], [100 - 40 * k, 71], [100 - 15 * k, 87], [100, 100]];
-  const xy = (x, y) => `${side === 'l' ? x : 100 - x}% ${y}%`;
-  const outer = side === 'l' ? '0% 100%, 0% 0%' : '100% 100%, 100% 0%';
-  return `polygon(${pts.map(([x, y]) => xy(x, y)).join(', ')}, ${outer})`;
+  const pts = [];
+  for (let y = 0; y <= 100; y += 5) {
+    // pull toward the tieback at 58%, then let the hem flare back out to the floor
+    const p = y <= 58 ? Math.sin((Math.PI / 2) * (y / 58)) ** 2 : Math.cos((Math.PI / 2) * ((y - 58) / 42)) ** 1.6;
+    const x = 100 - 52 * k * p;
+    pts.push(`${(side === 'l' ? x : 100 - x).toFixed(2)}% ${y}%`);
+  }
+  return `polygon(${pts.join(', ')}, ${side === 'l' ? '0% 100%, 0% 0%' : '100% 100%, 100% 0%'})`;
 }
 const sideOf = (p) => (p.classList.contains('th-l') ? 'l' : 'r');
 const gather = () => +getComputedStyle(deco).getPropertyValue('--gather') || 0.17;
@@ -312,22 +316,25 @@ function idleSpots() {
 
 // ---------- footlights follow the music ----------
 const freq = new Uint8Array(analyser.frequencyBinCount);
+const wave = new Float32Array(analyser.fftSize);
 function tick() {
   if (!on) { raf = 0; return; }
   analyser.getByteFrequencyData(freq);
-  let sum = 0;
-  for (let k = 2; k < 260; k++) sum += freq[k];
-  const raw = Math.min(1, Math.pow(sum / 258 / 255, 0.8) * 1.9);
-  lvl += (raw - lvl) * (raw > lvl ? 0.45 : 0.06);
+  analyser.getFloatTimeDomainData(wave);
+  let e = 0;
+  for (let k = 0; k < wave.length; k += 2) e += wave[k] * wave[k];
+  const raw = Math.min(1, Math.sqrt(e / (wave.length / 2)) * 3.2); // full tutti sits around 0.7-0.9
+  lvl += (raw - lvl) * (raw > lvl ? 0.35 : 0.05);
   deco.style.setProperty('--lvl', lvl.toFixed(3));
 
   const n = lamps.length, mid = (n - 1) / 2;
   for (let k = 0; k < n; k++) {
     const d = mid ? Math.abs(k - mid) / mid : 0;
-    const b0 = Math.round(3 * Math.pow(70, d)), b1 = Math.max(b0 + 2, Math.round(b0 * 1.5));
+    const b0 = Math.round(3 * Math.pow(40, d)), b1 = Math.max(b0 + 2, Math.round(b0 * 1.5));
     let s = 0;
     for (let j = b0; j < b1; j++) s += freq[j];
-    const v = Math.min(1, Math.pow(s / (b1 - b0) / 255, 1.4) * (1.3 + d));
+    const floor = 112 - 52 * d; // bytes are dB-scaled; the treble wings sit lower, so their floor drops
+    const v = Math.min(1, Math.pow(Math.max(0, (s / (b1 - b0) - floor) / (255 - floor)), 1.5) * 1.25);
     lampLv[k] += (v - lampLv[k]) * (v > lampLv[k] ? 0.5 : 0.08);
     lamps[k].style.setProperty('--l', lampLv[k].toFixed(3));
   }
