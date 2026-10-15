@@ -6,22 +6,49 @@
 
 export const ctx = new (window.AudioContext || window.webkitAudioContext)();
 
-const master = ctx.createGain(); master.gain.value = 0.8;
-const comp = ctx.createDynamicsCompressor();
-export const analyser = ctx.createAnalyser(); analyser.fftSize = 2048;
-master.connect(comp).connect(analyser).connect(ctx.destination);
-
-// ponytail: generated-noise impulse response, swap for a real hall IR if wanted
-const reverb = ctx.createConvolver();
+// ---- mix bus: seats -> master (auto-gain) -> glue comp -> limiter -> soft clip -> analyser -> out ----
+const MASTER = 0.62;
+const master = ctx.createGain(); master.gain.value = MASTER;
+const comp = ctx.createDynamicsCompressor(); // gentle glue; slow-ish attack/release so the kick doesn't pump the strings
+comp.threshold.value = -14; comp.knee.value = 14; comp.ratio.value = 2.2; comp.attack.value = 0.025; comp.release.value = 0.35;
+const limiter = ctx.createDynamicsCompressor(); // safety limiter: fast attack, high ratio
+limiter.threshold.value = -5; limiter.knee.value = 1; limiter.ratio.value = 20; limiter.attack.value = 0.001; limiter.release.value = 0.12;
+const clip = ctx.createWaveShaper(); // soft clip for anything that slips past the limiter's attack; output never reaches 1
 {
-  const len = ctx.sampleRate * 2.8, ir = ctx.createBuffer(2, len, ctx.sampleRate);
+  const n = 2048, c = new Float32Array(n), T = 0.75, M = 0.97;
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1)) * 2 - 1, a = Math.abs(x);
+    c[i] = Math.sign(x) * (a < T ? a : T + (M - T) * Math.tanh((a - T) / (M - T)));
+  }
+  clip.curve = c; clip.oversample = '2x';
+}
+export const analyser = ctx.createAnalyser(); analyser.fftSize = 2048;
+master.connect(comp).connect(limiter).connect(clip).connect(analyser).connect(ctx.destination);
+export const mix = { master, comp, limiter, clip }; // for meters / debugging
+
+// hall reverb: generated IR = sparse early reflections + a decorrelated stereo tail that darkens as it decays
+function hallIR(len = 3.4, rt60 = 2.4, pre = 0.016) {
+  const sr = ctx.sampleRate, n = Math.floor(len * sr), ir = ctx.createBuffer(2, n, sr), p0 = Math.floor(pre * sr);
+  const step = Math.pow(10, -3 / (rt60 * sr)), fadeIn = 0.05 * sr;
   for (let c = 0; c < 2; c++) {
     const d = ir.getChannelData(c);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+    for (let k = 0; k < 16; k++) { // early reflections 7-95 ms, different per ear
+      const tt = 0.007 + Math.pow(Math.random(), 1.4) * 0.088;
+      d[p0 + Math.floor(tt * sr)] += (Math.random() < 0.5 ? -1 : 1) * 0.8 * Math.exp(-tt * 16);
+    }
+    let lp = 0, env = 1;
+    for (let i = p0; i < n; i++) {
+      const tt = (i - p0) / sr, a = Math.min(0.93, 0.2 + tt * 0.4); // one-pole lowpass closes over time: highs die first
+      lp = lp * a + (Math.random() * 2 - 1) * (1 - a);
+      d[i] += lp * Math.sqrt((1 + a) / (1 - a)) * env * 0.32 * Math.min(1, (i - p0) / fadeIn);
+      env *= step;
+    }
   }
-  reverb.buffer = ir;
+  return ir;
 }
-const wet = ctx.createGain(); wet.gain.value = 0.35;
+const reverb = ctx.createConvolver(); reverb.buffer = hallIR();
+const revIn = ctx.createBiquadFilter(); revIn.type = 'highpass'; revIn.frequency.value = 180; revIn.connect(reverb); // keep lows dry
+const wet = ctx.createGain(); wet.gain.value = 0.3;
 reverb.connect(wet).connect(master);
 
 export const noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
@@ -29,17 +56,32 @@ noiseBuf.getChannelData(0).forEach((_, i, d) => (d[i] = Math.random() * 2 - 1));
 
 export const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
+// ---- building blocks ----
+const waves = {};
+const wave = (name, amps) => waves[name] || (waves[name] = ctx.createPeriodicWave(new Float32Array(amps.length), Float32Array.from(amps)));
 function osc(type, f, t, end, out, gain = 1, detune = 0) {
-  const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = detune;
-  const g = ctx.createGain(); g.gain.value = gain;
-  o.connect(g).connect(out); o.start(t); o.stop(end);
+  const o = ctx.createOscillator();
+  if (typeof type === 'string') o.type = type; else o.setPeriodicWave(type);
+  o.frequency.value = f; o.detune.value = detune;
+  if (gain === 1) o.connect(out); else { const g = ctx.createGain(); g.gain.value = gain; o.connect(g).connect(out); }
+  o.start(t); o.stop(end);
   return o;
 }
-function vibrato(oscs, t, end, rate, depth) {
+// delayed vibrato in cents (same pitch wobble for every partial)
+function vibrato(oscs, t, end, rate, cents, delay = 0.2) {
   const l = ctx.createOscillator(), g = ctx.createGain();
-  l.frequency.value = rate; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(depth, t + 0.3);
-  l.connect(g); oscs.forEach((o) => g.connect(o.frequency)); l.start(t); l.stop(end);
+  l.frequency.value = rate * (0.94 + Math.random() * 0.12);
+  g.gain.setValueAtTime(0, t + delay); g.gain.linearRampToValueAtTime(cents, t + delay + 0.4);
+  l.connect(g); oscs.forEach((o) => g.connect(o.detune)); l.start(t); l.stop(end);
 }
+function noise(t, end, out) {
+  const n = ctx.createBufferSource(); n.buffer = noiseBuf; n.loop = true;
+  n.connect(out); n.start(t, Math.random() * 0.9); n.stop(end); return n;
+}
+function filt(type, freq, q, out) {
+  const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; f.connect(out); return f;
+}
+const lp = (out, freq, q = 0.7) => filt('lowpass', freq, q, out);
 // sustained envelope: attack -> hold vel -> release after dur
 function sus(out, t, dur, vel, a, r) {
   const g = ctx.createGain();
@@ -50,62 +92,136 @@ function sus(out, t, dur, vel, a, r) {
 // percussive envelope: fast attack, exponential decay
 function hit(out, t, vel, decay) {
   const g = ctx.createGain();
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel, t + 0.005);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel, t + 0.004);
   g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
   g.connect(out); return [g, t + decay + 0.05];
 }
-function lp(out, freq, q = 0.7) {
-  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq; f.Q.value = q; f.connect(out); return f;
+// short noise burst with its own envelope: peak at attack, then settles to `rest` (0 = dies away)
+function breath(out, t, end, peak, rest, freq, q, type = 'bandpass') {
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + 0.02); g.gain.setTargetAtTime(rest, t + 0.035, 0.06);
+  g.connect(out); noise(t, end, filt(type, freq, q, g));
 }
 
+// brass family: filter "blat" (fast opening past the settle point), lip scoop up to pitch, late vibrato
+function brassy(f, t, dur, vel, out, dt, o) {
+  const [g, end] = sus(out, t, dur, vel * o.lvl, o.a, o.r);
+  const fl = lp(g, f, o.q), settle = Math.min(f * (o.settle + vel * 1.5), 9000);
+  fl.frequency.setValueAtTime(f * 0.8, t);
+  fl.frequency.linearRampToValueAtTime(Math.min(f * o.peak, 12000), t + o.a * 0.9);
+  fl.frequency.setTargetAtTime(settle, t + o.a, 0.07);
+  const os = [osc('sawtooth', f, t, end, fl, 1, dt), osc(o.wave2, f, t, end, fl, o.mix2, dt + 7)];
+  os.forEach((x) => { x.detune.setValueAtTime(dt - o.scoop, t); x.detune.setTargetAtTime(dt, t, 0.025); });
+  if (o.vib) vibrato(os, t, end, 5.3, o.vib, 0.35);
+}
+const TRUMPET = { lvl: 0.17, a: 0.025, r: 0.12, q: 2.2, peak: 12, settle: 4, scoop: 40, wave2: 'sawtooth', mix2: 0.55, vib: 7 };
+const HORN = { lvl: 0.24, a: 0.08, r: 0.28, q: 0.6, peak: 3.8, settle: 1.6, scoop: 12, wave2: 'triangle', mix2: 1, vib: 0 };
+
+// Karplus-Strong pluck, rendered once per pitch into a buffer (2 nodes per note at play time)
+const KS = new Map();
+function ks(f) {
+  const key = Math.round(f * 10); let v = KS.get(key); if (v) return v;
+  const sr = ctx.sampleRate, N = Math.max(2, Math.round(sr / f - 0.5));
+  const T60 = Math.max(1.3, Math.min(3.2, 3.2 - Math.log2(f / 146) * 0.8)), len = Math.floor(sr * T60);
+  const rho = Math.min(0.99995, Math.pow(0.001, 1 / (T60 * f)) / Math.cos((Math.PI * f) / sr));
+  const d = new Float32Array(len), ex = new Float32Array(N);
+  let s = 0, mean = 0, peak = 0;
+  for (let i = 0; i < N; i++) { s += (Math.random() * 2 - 1 - s) * 0.4; ex[i] = s; mean += s / N; } // soft fingertip: low-passed burst
+  for (let i = 0; i < len; i++) {
+    d[i] = (i < N ? ex[i] - mean : 0) + (i > N ? rho * 0.5 * (d[i - N] + d[i - N - 1]) : 0);
+    peak = Math.max(peak, Math.abs(d[i]));
+  }
+  for (let i = 0; i < len; i++) d[i] /= peak;
+  const buf = ctx.createBuffer(1, len, sr); buf.getChannelData(0).set(d);
+  v = { buf, rate: (f * (N + 0.5)) / sr }; KS.set(key, v); return v;
+}
+
+const CLARINET = [0, 1, 0.03, 0.5, 0.02, 0.28, 0.015, 0.16, 0.01, 0.08, 0, 0.04, 0, 0.02]; // odd harmonics = hollow
+const VOWEL_AH = { // [freq, gain, bandwidth] formants of a sung "aah"
+  low: [[700, 1, 80], [1100, 0.55, 90], [2450, 0.3, 120]],
+  high: [[850, 1, 90], [1250, 0.5, 100], [2850, 0.32, 140]],
+};
+
 export const VOICES = {
+  // string ensemble: three detuned bows, bow-noise "bite", slower speaking low strings, softened highs
   string(f, t, dur, vel, out, dt) {
-    const [g, end] = sus(out, t, dur, vel * 0.22, 0.09, 0.3);
-    const fl = lp(g, Math.min(f * 5 + 600, 9000), 1.2);
-    const o = [osc('sawtooth', f, t, end, fl, 1, dt - 6), osc('sawtooth', f, t, end, fl, 1, dt + 6)];
-    vibrato(o, t, end, 5.6, f * 0.007);
+    const a = f < 140 ? 0.17 : f < 300 ? 0.12 : 0.075;
+    const [g, end] = sus(out, t, dur, vel * 0.13, a, f < 140 ? 0.4 : 0.3);
+    const top = Math.min(f * 3.5 + 900, 6000), fl = lp(g, top, 0.6);
+    fl.frequency.setValueAtTime(top * 0.4, t); fl.frequency.linearRampToValueAtTime(top, t + a * 1.6);
+    const os = [-10, -2, 8].map((c) => osc('sawtooth', f, t, end, fl, 1, dt + c));
+    vibrato(os, t, end, 5.5, 13, 0.18);
+    breath(g, t, end, 0.9, 0.12, Math.min(f * 3, 5000), 0.8);
   },
+  // flute: sine + a touch of 2nd harmonic; breath chiff at the attack fades to a faint air
   flute(f, t, dur, vel, out, dt) {
-    const [g, end] = sus(out, t, dur, vel * 0.35, 0.06, 0.2);
-    const o = [osc('sine', f, t, end, g, 1, dt), osc('triangle', f, t, end, g, 0.25, dt)];
-    vibrato(o, t, end, 5, f * 0.005);
-    const n = ctx.createBufferSource(); n.buffer = noiseBuf; n.loop = true;
-    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f * 2; bp.Q.value = 3;
-    const ng = ctx.createGain(); ng.gain.value = 0.08;
-    n.connect(bp).connect(ng).connect(g); n.start(t); n.stop(end);
+    const [g, end] = sus(out, t, dur, vel * 0.3, 0.05, 0.18);
+    const os = [osc('sine', f, t, end, g, 1, dt), osc('sine', f * 2, t, end, g, 0.14, dt + 4), osc('triangle', f, t, end, g, 0.1, dt)];
+    vibrato(os, t, end, 5.2, 11, 0.2);
+    breath(g, t, end, 0.7, 0.05, f * 2.2, 1.3);
   },
+  // clarinet: odd-harmonic periodic wave, velocity-dependent brightness, almost no vibrato
   reed(f, t, dur, vel, out, dt) {
-    const [g, end] = sus(out, t, dur, vel * 0.13, 0.04, 0.15);
-    const o = [osc('square', f, t, end, lp(g, f * 3.5, 2), 1, dt)];
-    vibrato(o, t, end, 4.5, f * 0.003);
+    const [g, end] = sus(out, t, dur, vel * 0.24, 0.035, 0.12);
+    const os = [osc(wave('clarinet', CLARINET), f, t, end, lp(g, Math.min(f * (3 + vel * 3), 7000), 0.9), 1, dt)];
+    vibrato(os, t, end, 4.8, 4, 0.3);
+    breath(g, t, end, 0.25, 0.02, f * 3, 1.5);
   },
-  brass(f, t, dur, vel, out, dt) {
-    const [g, end] = sus(out, t, dur, vel * 0.18, 0.03, 0.15);
-    const fl = lp(g, f, 1.5);
-    fl.frequency.setValueAtTime(f, t); fl.frequency.linearRampToValueAtTime(f * 7, t + 0.06);
-    fl.frequency.exponentialRampToValueAtTime(f * 3.5, t + 0.3);
-    osc('sawtooth', f, t, end, fl, 1, dt); osc('sawtooth', f, t, end, fl, 0.6, dt + 8);
-  },
+  brass(f, t, dur, vel, out, dt) { brassy(f, t, dur, vel, out, dt, TRUMPET); },
+  horn(f, t, dur, vel, out, dt) { brassy(f, t, dur, vel, out, dt, HORN); },
+  // harp: Karplus-Strong string
   pluck(f, t, dur, vel, out, dt) {
-    const [g, end] = hit(out, t, vel * 0.35, 2.2);
-    const fl = lp(g, f * 6); fl.frequency.setValueAtTime(f * 8, t); fl.frequency.exponentialRampToValueAtTime(f * 1.5, t + 1);
-    osc('triangle', f, t, end, fl, 1, dt); osc('sine', f * 2, t, end, fl, 0.3, dt);
+    const { buf, rate } = ks(f);
+    const s = ctx.createBufferSource(), g = ctx.createGain();
+    s.buffer = buf; s.playbackRate.value = rate * Math.pow(2, dt / 1200); g.gain.value = vel * 0.34;
+    s.connect(g).connect(out); s.start(t);
   },
-  piano(f, t, dur, vel, out, dt) {
-    const [g, end] = hit(out, t, vel * 0.3, Math.min(3, 1 + dur));
-    osc('triangle', f, t, end, g, 1, dt); osc('sine', f * 2, t, end, g, 0.35, dt); osc('sine', f * 3, t, end, g, 0.12, dt);
+  // piano: stretched (inharmonic) partials, two strings beating, hammer thump, prompt + aftersound decay, damper at note-off
+  piano(f, t, dur, vel, out, dt, midi) {
+    const m = midi ?? 69 + 12 * Math.log2(f / 440), A = vel * 0.14, off = t + Math.max(0.15, dur), end = off + 0.6;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(A, t + 0.003);
+    g.gain.setTargetAtTime(A * 0.4, t + 0.003, 0.1);
+    if (off > t + 0.3) g.gain.setTargetAtTime(0, t + 0.3, Math.max(0.6, 3.6 - (m - 48) * 0.07) / 6.9);
+    g.gain.setTargetAtTime(0, off, 0.08);
+    g.connect(out);
+    const fl = lp(g, Math.min(f * (5 + vel * 10), 12000), 0.5);
+    fl.frequency.setTargetAtTime(f * 3 + 500, t + 0.01, 0.25);
+    const B = 0.0004;
+    [1, 0.5, 0.32, 0.2, 0.12, 0.07].forEach((a, i) => { const n = i + 1; osc('sine', f * n * Math.sqrt(1 + B * n * n), t, end, fl, a, dt); });
+    osc('sine', f, t, end, fl, 0.6, dt + 1.8); // second string, slow beating
+    const [hg, hend] = hit(out, t, vel * 0.05, 0.04);
+    noise(t, hend, filt('bandpass', Math.min(f * 2.5, 2500), 1.1, hg));
   },
+  // glockenspiel: clean bar partials, upper ones die fast, a tiny strike tick
   bell(f, t, dur, vel, out, dt) {
-    [[1, 1, 1.6], [2.76, 0.35, 0.6], [5.4, 0.15, 0.3]].forEach(([r, a, d]) => {
-      const [g, end] = hit(out, t, vel * 0.2 * a, d); osc('sine', f * r, t, end, g, 1, dt);
+    [[1, 1, 1.9], [2.756, 0.2, 0.4], [5.404, 0.06, 0.14]].forEach(([r, a, d]) => {
+      const [g, end] = hit(out, t, vel * 0.17 * a, d); osc('sine', f * r, t, end, g, 1, dt);
     });
+    const [tg, tend] = hit(out, t, vel * 0.03, 0.015); noise(t, tend, filt('highpass', 5000, 0.7, tg));
   },
+  // timpani: tuned membrane modes (1 : 1.5 : 2 : 2.44), a pitch-dropping head thump, felt mallet
   timpani(f, t, dur, vel, out, dt) {
-    const [g, end] = hit(out, t, vel * 0.9, 1.4);
-    const o = osc('sine', f, t, end, lp(g, 300), 1, dt);
-    o.frequency.setValueAtTime(f * 1.4, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.06);
-    const [ng, nend] = hit(out, t, vel * 0.3, 0.12);
-    const n = ctx.createBufferSource(); n.buffer = noiseBuf; n.connect(lp(ng, 500)); n.start(t); n.stop(nend);
+    [[1, 1, 2.4], [1.5, 0.45, 1.3], [1.98, 0.25, 0.8], [2.44, 0.12, 0.5]].forEach(([r, a, d]) => {
+      const [g, end] = hit(out, t, vel * 0.42 * a, d), o = osc('sine', f * r, t, end, g, 1, dt);
+      o.detune.setValueAtTime(dt + 35, t); o.detune.setTargetAtTime(dt, t, 0.04);
+    });
+    const [tg, tend] = hit(out, t, vel * 0.45, 0.3), th = osc('sine', f, t, tend, tg, 1, dt);
+    th.frequency.setValueAtTime(f * 0.9, t); th.frequency.exponentialRampToValueAtTime(f * 0.45, t + 0.15);
+    const [ng, nend] = hit(out, t, vel * 0.18, 0.07); noise(t, nend, lp(ng, 800));
+  },
+  // choir "aah": a few detuned singers -> parallel formant band-passes (+ a little chest fundamental)
+  choir(f, t, dur, vel, out, dt) {
+    const [g, end] = sus(out, t, dur, vel * 0.6, 0.3, 0.5);
+    const src = ctx.createGain(); src.gain.value = 1;
+    const os = [-9, 0, 9].map((c) => osc('sawtooth', f, t, end, src, 1, dt + c));
+    vibrato(os, t, end, 5, 16, 0.3);
+    for (const [ff, a, bw] of f < 260 ? VOWEL_AH.low : VOWEL_AH.high) {
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = ff; bp.Q.value = ff / bw;
+      src.connect(bp);
+      if (a === 1) bp.connect(g); else { const ga = ctx.createGain(); ga.gain.value = a; bp.connect(ga).connect(g); }
+    }
+    const body = ctx.createGain(); body.gain.value = 0.12; src.connect(lp(body, f * 1.3)); body.connect(g);
   },
 };
 
@@ -115,22 +231,33 @@ export const CHORDS = [[50, 'M'], [45, 'M'], [47, 'm'], [42, 'm'], [43, 'M'], [3
 const triad = (r, q) => [r, r + (q === 'M' ? 4 : 3), r + 7];
 const into = (m, lo) => { while (m < lo) m += 12; while (m >= lo + 12) m -= 12; return m; };
 const per = (fn) => CHORDS.flatMap(([r, q], i) => fn(r, q, i * 2, i)); // fn returns [[beat, midi, dur, vel?]...]
+const split = (...parts) => ({ parts }); // one part per copy: copy k plays parts[k % n]
 
 const CANON_8THS = [74, 73, 74, 62, 61, 69, 64, 66, 62, 74, 73, 71, 73, 78, 81, 83, 79, 78, 76, 79, 78, 76, 74, 73, 71, 69, 67, 66, 64, 67, 66, 64];
 const TOP = [78, 76, 74, 73, 71, 69, 71, 73];
 const SECOND = [74, 73, 71, 69, 67, 66, 67, 69];
+// voice-led inner lines (thirds / fifths of each chord, moving by step)
+const INNER_HI = [66, 64, 66, 66, 67, 66, 67, 69];
+const INNER_LO = [62, 61, 62, 61, 62, 62, 59, 61];
+const CLOSE = [[57, 62, 66], [57, 61, 64], [59, 62, 66], [57, 61, 66], [59, 62, 67], [57, 62, 66], [59, 62, 67], [61, 64, 69]];
 
 const PARTS = {
   violin: CANON_8THS.map((m, i) => [i / 2, m, 0.5]),
   viola: per((r, q, b) => { const [a, c, e] = triad(into(r, 55), q); return [[b, a, 0.5], [b + 0.5, c, 0.5], [b + 1, e, 0.5], [b + 1.5, c, 0.5]]; }),
   cello: per((r, q, b) => [[b, r, 2]]),
+  contrabass: per((r, q, b) => [[b, r - 12, 0.92, 1], [b + 1, r - 12, 0.92, 0.8]]),
   flute: TOP.map((m, i) => [i * 2, m, 2]),
   clarinet: SECOND.map((m, i) => [i * 2, m - 12, 2]),
   trumpet: per((r, q, b, i) => i % 2 ? [] : [[b, into(r, 60), 1.2], [b + 1.5, into(r + 7, 60), 0.4], [b + 2, into(r + 7, 60), 1.5]]),
+  horn: split(INNER_HI.map((m, i) => [i * 2, m, 1.9, 0.85]), INNER_LO.map((m, i) => [i * 2, m, 1.9, 0.8])),
   harp: per((r, q, b) => { const [a, c, e] = triad(into(r, 50), q); return [[b, a, 1.5], [b + 0.5, e, 1.5], [b + 1, a + 12, 1.5], [b + 1.5, c + 12, 1.5]]; }),
   piano: per((r, q, b) => triad(into(r, 60), q).flatMap((m) => [[b, m, 1.4, 0.9], [b + 1, m, 0.9, 0.6]])),
   glockenspiel: TOP.map((m, i) => [i * 2 + 1, m + 12, 0.5, 0.7]),
   timpani: [...per((r, q, b, i) => i % 2 ? [] : [[b, into(r, 38), 1]]), ...[15, 15.25, 15.5, 15.75].map((b, i) => [b, 45, 0.25, 0.3 + i * 0.12])],
+  choir: split(
+    CLOSE.flatMap((ch, i) => ch.map((m) => [i * 2, m, 1.95, 0.75])),
+    per((r, q, b) => [[b, into(r, 41), 1.95, 0.75], [b, into(r + 7, 49), 1.95, 0.6]]),
+  ),
 };
 
 // kind decides what extra copies of a section play: harmony, octaves, then unison
@@ -138,13 +265,16 @@ export const INSTRUMENTS = [
   { id: 'violin', name: 'Violin', family: 'strings', voice: 'string', kind: 'melody', copies: 3, hue: 18 },
   { id: 'viola', name: 'Viola', family: 'strings', voice: 'string', kind: 'chord', copies: 2, hue: 32 },
   { id: 'cello', name: 'Cello', family: 'strings', voice: 'string', kind: 'bass', copies: 2, hue: 8 },
+  { id: 'contrabass', name: 'Contrabass', family: 'strings', voice: 'string', kind: 'bass', copies: 1, hue: 350 },
   { id: 'flute', name: 'Flute', family: 'woodwinds', voice: 'flute', kind: 'melody', copies: 1, hue: 150 },
   { id: 'clarinet', name: 'Clarinet', family: 'woodwinds', voice: 'reed', kind: 'melody', copies: 1, hue: 170 },
   { id: 'trumpet', name: 'Trumpet', family: 'brass', voice: 'brass', kind: 'chord', copies: 2, hue: 45 },
+  { id: 'horn', name: 'French horn', family: 'brass', voice: 'horn', kind: 'chord', copies: 2, hue: 38 },
   { id: 'harp', name: 'Harp', family: 'strings', voice: 'pluck', kind: 'chord', copies: 1, hue: 280 },
   { id: 'piano', name: 'Piano', family: 'keys', voice: 'piano', kind: 'chord', copies: 1, hue: 220 },
   { id: 'glockenspiel', name: 'Glockenspiel', family: 'percussion', voice: 'bell', kind: 'chord', copies: 1, hue: 195 },
   { id: 'timpani', name: 'Timpani', family: 'percussion', voice: 'timpani', kind: 'perc', copies: 1, hue: 0 },
+  { id: 'choir', name: 'Choir', family: 'voices', voice: 'choir', kind: 'chord', copies: 2, hue: 300 },
 ];
 export const byId = Object.fromEntries(INSTRUMENTS.map((i) => [i.id, i]));
 
@@ -161,21 +291,58 @@ const VARIANTS = {
   perc: [(m) => m],
 };
 
+// ---- mix: per-section level, seating (pan), reverb send ----
+const LEVEL = {
+  violin: 1, viola: 0.62, cello: 0.85, contrabass: 0.8, flute: 1, clarinet: 0.75, trumpet: 0.6, horn: 0.55,
+  harp: 0.8, piano: 0.7, glockenspiel: 0.5, timpani: 0.7, choir: 0.6,
+  kick: 0.55, snare: 0.4, hihat: 0.35, toms: 0.45, cymbals: 0.32,
+};
+const FAMILY_LEVEL = { drums: 0.4 };
+const PAN = { // concert seating, audience view
+  violin: -0.55, viola: 0.15, cello: 0.4, contrabass: 0.62, flute: -0.12, clarinet: 0.12, trumpet: 0.32, horn: -0.3,
+  harp: -0.72, piano: -0.4, glockenspiel: 0.5, timpani: 0.05, choir: 0, kick: 0, snare: 0.06, hihat: 0.28, toms: -0.18, cymbals: 0.35,
+};
+const levelOf = (inst) => LEVEL[inst.id] ?? FAMILY_LEVEL[inst.family] ?? 0.65;
+const sendOf = (inst) => (inst.family === 'drums' ? 0.12 : inst.kind === 'bass' ? 0.4 : inst.kind === 'perc' ? 0.5 : 1);
+
+// copies of a section share the load (n^-0.4 per player), and the whole band is trimmed as sections pile up
+function rebalance() {
+  const now = ctx.currentTime, on = {};
+  for (const s of seats) if (s.active) on[s.inst] = (on[s.inst] || 0) + 1;
+  for (const s of seats) s.gain.gain.setTargetAtTime(levelOf(byId[s.inst]) / Math.pow(Math.max(1, on[s.inst] || 0), 0.4), now, 0.08);
+  master.gain.setTargetAtTime(MASTER / Math.pow(Math.max(1, Object.keys(on).length), 0.28), now, 0.25);
+}
+
 // ---- seats ----
 export const seats = [];
 let nextId = 1;
-const emit = (name, detail = {}) => window.dispatchEvent(new CustomEvent(name, { detail }));
+const emit = (name, detail = {}) => {
+  if (name === 'orch:change') rebalance();
+  window.dispatchEvent(new CustomEvent(name, { detail }));
+};
+
+// ---- scheduler data: 16th-note steps, 64 per loop ----
+const STEPS = LOOP_BEATS * 4;
+const compile = (notes) => {
+  const map = Array.from({ length: STEPS }, () => []);
+  notes.forEach(([b, m, d, v = 1]) => map[Math.round(b * 4) % STEPS].push([m, d, v]));
+  return map;
+};
+const NOTES = Object.fromEntries(Object.entries(PARTS).map(([id, p]) => [id, (p.parts || [p]).map(compile)])); // id -> one part per copy (cycled)
 
 export function addSeat(instId) {
   const inst = byId[instId], k = seats.filter((s) => s.inst === instId).length;
   const pan = ctx.createStereoPanner(), gain = ctx.createGain(), send = ctx.createGain();
-  pan.pan.value = Math.max(-0.9, Math.min(0.9, (INSTRUMENTS.indexOf(inst) / (INSTRUMENTS.length - 1)) * 1.4 - 0.7 + (k % 2 ? 0.15 : -0.15) * Math.ceil(k / 2)));
-  gain.gain.value = 1 / Math.sqrt(1 + k * 0.6); send.gain.value = 1;
-  pan.connect(gain); gain.connect(master); gain.connect(send).connect(reverb);
-  const v = VARIANTS[inst.kind];
+  const spread = inst.family === 'voices' ? 0.3 : inst.family === 'drums' ? 0.05 : 0.13;
+  const base = PAN[instId] ?? (INSTRUMENTS.indexOf(inst) / Math.max(1, INSTRUMENTS.length - 1)) * 1.4 - 0.7;
+  pan.pan.value = Math.max(-0.9, Math.min(0.9, base + (k % 2 ? spread : -spread) * Math.ceil(k / 2)));
+  gain.gain.value = levelOf(inst); send.gain.value = sendOf(inst);
+  pan.connect(gain); gain.connect(master); gain.connect(send).connect(revIn);
+  // the first P copies play their own parts; further copies get the kind's variants (harmony, octaves, unison)
+  const v = VARIANTS[inst.kind] || VARIANTS.perc, P = NOTES[instId]?.length || 1, j = Math.floor(k / P);
   const seat = {
     id: nextId++, inst: instId, k, out: pan, gain,
-    transform: v[k] || v[0], detune: k >= v.length ? (k % 2 ? 9 : -9) * Math.ceil(k / 2) : (k ? 3 : 0),
+    transform: v[j] || v[0], detune: j >= v.length ? (j % 2 ? 9 : -9) * Math.ceil(j / 2) : (k ? 3 : 0),
     active: false, loop: true, start: 0, end: Infinity,
   };
   seats.push(seat); emit('orch:change'); return seat;
@@ -187,14 +354,7 @@ export function removeSeat(instId) {
 }
 INSTRUMENTS.forEach((i) => { for (let k = 0; k < i.copies; k++) addSeat(i.id); });
 
-// ---- scheduler: 16th-note steps, 64 per loop ----
-const STEPS = LOOP_BEATS * 4;
-const compile = (notes) => {
-  const map = Array.from({ length: STEPS }, () => []);
-  notes.forEach(([b, m, d, v = 1]) => map[Math.round(b * 4) % STEPS].push([m, d, v]));
-  return map;
-};
-const NOTES = Object.fromEntries(Object.entries(PARTS).map(([id, notes]) => [id, [compile(notes)]])); // id -> one part per copy (cycled)
+// ---- scheduler ----
 const voiceOf = (inst) => (typeof inst.voice === 'function' ? inst.voice : VOICES[inst.voice]);
 export let bpm = 84;
 export const setBpm = (b) => (bpm = b);
