@@ -158,9 +158,9 @@ function placeInd(S, animate = true) {
   S.ind.style.transform = `translateX(${btn.offsetLeft}px)`;
 }
 
-// ---------- in-place diff, coalesced to one per frame ----------
+// ---------- in-place diff, coalesced per task (section() emits one change per seat) ----------
 let queued = false, first = true;
-const schedule = () => { if (!queued) { queued = true; requestAnimationFrame(update); } };
+const schedule = () => { if (!queued) { queued = true; queueMicrotask(update); } };
 
 function update() {
   queued = false;
