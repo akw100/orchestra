@@ -235,7 +235,7 @@ function setMode(m) {
   emit('orch:mode', { mode: m });
   try { songs?.onModeChange?.(m); } catch (err) { console.error(err); }
   if (m === 'play') { loadSongs(); hideRings(); toast('`', 'Play mode · type to play the tune'); }
-  else toast('`', 'Conduct mode · letters pick sections');
+  else { toast('`', 'Conduct mode · letters pick sections'); if (level() !== 'all') showRings(); }
   renderHud();
 }
 
@@ -413,13 +413,13 @@ function buildSheet() {
     if (c === 'L') return capHtml('KeyL', 'L', 'Loop / once', { shift: sh, cls: 'act' });
     return capHtml(`Key${c}`, c, id ? nameOf(id) : '', { shift: sh, hue: id ? O.byId[id].hue : null, dim: !id && !sh });
   };
-  const digit = (d) => capHtml(`Digit${d}`, d, DIGIT_MODE[d] ? MODES[DIGIT_MODE[d]] : '', { dim: !DIGIT_MODE[d], cls: DIGIT_MODE[d] ? 'mode' : '' });
+  const digit = (d) => capHtml(`Digit${d}`, d, DIGIT_MODE[d] ? MODES[DIGIT_MODE[d]].replace('All but one', 'All but 1') : '', { dim: !DIGIT_MODE[d], cls: DIGIT_MODE[d] ? 'mode' : '' });
   const rows = [
     capHtml('Escape', 'Esc', 'Back', { w: 1.25, cls: 'act' }),
-    [capHtml('Backquote', '`', 'Conduct/Play', { cls: 'act' }), ...'1234567890'.split('').map(digit), capHtml('Minus', '−', 'Player', { cls: 'act' }), capHtml('Equal', '+', 'Player', { cls: 'act' }), capHtml('Backspace', '', '', { w: 1.6, dim: true })].join(''),
+    [capHtml('Backquote', '`', 'Mode', { cls: 'act' }), ...'1234567890'.split('').map(digit), capHtml('Minus', '−', 'Player', { cls: 'act' }), capHtml('Equal', '+', 'Player', { cls: 'act' }), capHtml('Backspace', '', '', { w: 1.6, dim: true })].join(''),
     [capHtml('Tab', 'Tab', '', { w: 1.5, dim: true }), ...'QWERTYUIOP'.split('').map(letter), capHtml('BracketLeft', '[', 'Slower', { shift: '−10', cls: 'act' }), capHtml('BracketRight', ']', 'Faster', { shift: '+10', cls: 'act' }), capHtml('Backslash', '\\', '', { w: 1.1, dim: true })].join(''),
     [capHtml('CapsLock', '', '', { w: 1.8, dim: true }), ...'ASDFGHJKL'.split('').map(letter), capHtml('Semicolon', ';', '', { dim: true }), capHtml('Quote', "'", '', { dim: true }), capHtml('Enter', 'Enter', 'Play / stop', { w: 1.8, shift: 'once', cls: 'act' })].join(''),
-    [capHtml('ShiftLeft', 'Shift', 'Families', { w: 2.3, cls: 'act' }), ...'ZXCVBNM'.split('').map(letter), capHtml('Comma', ',', '', { dim: true }), capHtml('Period', '.', '', { dim: true }), capHtml('Slash', '?', 'This sheet', { cls: 'act' }), capHtml('ShiftRight', 'Shift', '', { w: 2.3, dim: true })].join(''),
+    [capHtml('ShiftLeft', 'Shift', 'Families', { w: 2.3, cls: 'act' }), ...'ZXCVBNM'.split('').map(letter), capHtml('Comma', ',', '', { dim: true }), capHtml('Period', '.', '', { dim: true }), capHtml('Slash', '?', 'Help', { cls: 'act' }), capHtml('ShiftRight', 'Shift', '', { w: 2.3, dim: true })].join(''),
     [capHtml('AltLeft', 'Alt', 'Hints', { w: 1.4, cls: 'act' }), capHtml('Space', 'Space', 'Tutti / stop all', { w: 6.2, cls: 'act' }),
       `<span class="arrows">${capHtml('ArrowLeft', '←', '', { cls: 'act' })}<span class="ud">${capHtml('ArrowUp', '↑', '', { cls: 'act' })}${capHtml('ArrowDown', '↓', '', { cls: 'act' })}</span>${capHtml('ArrowRight', '→', '', { cls: 'act' })}</span>`].join(''),
   ];
@@ -441,12 +441,12 @@ function buildSheet() {
       <div class="k-board" aria-hidden="true">${rows.map((r, i) => `<div class="k-row r${i}">${r}</div>`).join('')}</div>
       <div class="k-lists">
         <section><h3>Sections</h3><ul class="k-sections">${sections}</ul></section>
-        <section><h3>Families</h3><ul>${fams}</ul></section>
+        <section><h3>Families</h3><ul class="k-fams">${fams}</ul></section>
         <section><h3>Who plays</h3><ul>
           <li>${k('1')}<span>All</span></li><li>${k('2')}<span>Most</span></li><li>${k('3')}<span>All but one</span></li><li>${k('4')}<span>Solo</span></li><li>${k('5')}<span>None</span></li></ul></section>
         <section><h3>Players &amp; time</h3><ul>
           <li>${k('Enter')}<span>Play / stop</span></li><li>${k('⇧Enter')}<span>Play once</span></li><li>${k('L')}<span>Loop or once</span></li>
-          <li>${k('+')}${k('−')}<span>Add / remove player</span></li><li>${k('[')}${k(']')}<span>Tempo ∓2 (⇧ ∓10)</span></li>
+          <li>${k('+')}${k('−')}<span>Add / remove player</span></li><li>${k('[')}${k(']')}<span>Slower / faster (⇧ by 10)</span></li>
           <li>${k('←')}${k('→')}<span>Next section</span></li><li>${k('↑')}${k('↓')}<span>Zoom in / out, walk players</span></li></ul></section>
         <section><h3>Stage</h3><ul>
           <li>${k('Space')}<span>Tutti / stop all</span></li><li>${k('`')}<span>Conduct ↔ Play mode</span></li>
@@ -487,8 +487,8 @@ function handleEsc() {
   if (level() !== 'all') { showRings(); up(); return true; }
   return false;
 }
-function conductAction(e) {
-  const c = e.code, m = keymap();
+function conductAction(e, c) {
+  const m = keymap();
   const say = (key, fn) => () => { const r = fn(); if (typeof r === 'string') toast(key, r); };
   if (/^Key[A-Z]$/.test(c)) {
     const L = c[3];
@@ -513,12 +513,21 @@ function conductAction(e) {
   }
   return e.key === '?' ? () => toggleSheet() : null;
 }
+// e.code is layout-independent (Hebrew, AZERTY...); fall back to e.key when a synthetic/virtual event leaves it empty
+const KEY_CODE = { '=': 'Equal', '+': 'Equal', '-': 'Minus', '_': 'Minus', '[': 'BracketLeft', '{': 'BracketLeft', ']': 'BracketRight', '}': 'BracketRight', '/': 'Slash', '?': 'Slash', '`': 'Backquote', '~': 'Backquote', ' ': 'Space', Spacebar: 'Space', Esc: 'Escape' };
+function codeOf(e) {
+  if (e.code) return e.code;
+  const k = e.key || '';
+  if (/^[a-z]$/i.test(k)) return 'Key' + k.toUpperCase();
+  if (/^[0-9]$/.test(k)) return 'Digit' + k;
+  return KEY_CODE[k] || k;
+}
 const REPEATABLE = /^(Arrow|Bracket|Equal|Minus|Numpad(Add|Subtract))/;
 const PLAY_FALLBACK = /^(Slash|BracketLeft|BracketRight)$/;
 
 function onKey(e, down) {
   if (e.isComposing) return;
-  const c = e.code, t = e.target;
+  const c = codeOf(e), t = e.target;
   if (e.key === 'Alt') { if (!isTyping(t)) showHints(down); return; }
   if (!down) {
     flashKey(c, false);
@@ -551,7 +560,7 @@ function onKey(e, down) {
   if ((c === 'Enter' || c === 'NumpadEnter') && t?.closest?.('button, a[href], summary, [role=button], input')) return;
   if (c.startsWith('Arrow') && t?.matches?.('input[type=range]')) return;
 
-  const act = conductAction(e);
+  const act = conductAction(e, c);
   if (!act) return;
   claim();
   if (e.repeat && !REPEATABLE.test(c)) return;

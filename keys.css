@@ -38,7 +38,7 @@
 /* ---------- HUD ---------- */
 .k-hud {
   position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); z-index: 1000;
-  translate: -50% 0; max-width: calc(100vw - 32px); font-family: var(--k-sans); color: var(--k-ink);
+  translate: -50% 0; width: max-content; max-width: calc(100vw - 32px); font-family: var(--k-sans); color: var(--k-ink);
 }
 .k-bar {
   display: flex; align-items: center; gap: 12px; padding: 5px 6px 5px 5px; border-radius: 999px;
@@ -69,7 +69,7 @@
 .k-mode:hover .k-m { color: var(--k-ink); }
 .k-hud:not(.is-play) .k-mode:hover .k-m[data-m='conduct'] { color: var(--k-accent-ink); }
 
-.k-sel { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.k-sel { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1 1 auto; }
 .k-sel .k-cap { color: var(--k-accent); }
 .k-sel-txt { display: grid; min-width: 0; line-height: 1.12; }
 .k-sel-txt b, .k-sel-txt small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 30ch; }
@@ -235,6 +235,7 @@
 .k-lists li { display: flex; align-items: center; gap: 6px; font-size: 13.5px; line-height: 1.25; }
 .k-lists li span { margin-left: 4px; }
 .k-sections li span { color: hsl(var(--hue) var(--k-hs) var(--k-hl)); }
+.k-fams .k-cap { min-width: 40px; }
 .k-lists section:nth-child(-n + 2) { display: none; }
 .k-foot { margin: 22px 0 0; color: var(--k-muted); font-size: 13.5px; line-height: 1.6; }
 .k-foot b { color: var(--k-ink); font: italic 600 15px var(--k-serif); margin-right: 4px; }
