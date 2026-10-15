@@ -44,6 +44,22 @@ const C = {
   vellum: ramp([64, 58, 48], [240, 230, 204]),
 };
 
+// ---------- theme (tokens from theme.css; fallbacks until it lands) ----------
+const TH = { light: false, stageBg: '#140b0f', floor: '#5b3520', accent: '#d6b26c', velvet: '#3d0f1c', hueS: '90%', hueL: '72%', lit: 1 };
+function readTheme() {
+  const root = document.documentElement, cs = getComputedStyle(root), v = (n, d) => cs.getPropertyValue(n).trim() || d;
+  TH.light = root.dataset.theme === 'light';
+  TH.stageBg = v('--stage-bg', TH.light ? '#eadcc2' : '#140b0f');
+  TH.floor = v('--stage-floor', TH.light ? '#b07a48' : '#5b3520');
+  TH.accent = v('--accent', '#d6b26c');
+  TH.velvet = v('--velvet', TH.light ? '#8a2434' : '#3d0f1c');
+  TH.hueS = v('--hue-s', TH.light ? '70%' : '90%');
+  TH.hueL = v('--hue-l', TH.light ? '42%' : '72%');
+  TH.lit = TH.light ? 0.5 : 1; // additive light reads weaker in a bright matinee hall
+  pals.clear();
+  if (W > 2) { renderBg(); renderFg(); }
+}
+
 // ---------- sprites (pre-rendered once, drawn with drawImage) ----------
 function sprite(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); return c; }
 const glowCache = new Map();
@@ -76,7 +92,7 @@ const pals = new Map();
 function pal(inst) {
   let p = pals.get(inst.id); if (p) return p;
   const h = inst.hue ?? 30;
-  p = { h, rim: `hsl(${h} 70% 82%)`, bright: `hsl(${h} 95% 74%)`, deep: `hsl(${h} 80% 52%)`, glow: glowSprite(h), cone: coneSprite(h, 95, 70) };
+  p = { h, rim: `hsl(${h} 70% 82%)`, bright: `hsl(${h} ${TH.hueS} ${TH.hueL})`, deep: `hsl(${h} 80% 52%)`, glow: glowSprite(h), cone: coneSprite(h, 95, 70) };
   pals.set(inst.id, p); return p;
 }
 
@@ -92,21 +108,23 @@ const ZONES = [
   ['flute', 2, 2, -28, -6], ['piccolo', 2, 2, -40, -32], ['oboe', 2, 2, -48, -34], ['clarinet', 2, 2, 6, 28], ['sax', 2, 2, 46, 56],
   ['horn', 3, 3, -50, -18], ['trumpet', 3, 3, -12, 12], ['trombone', 3, 3, 18, 40], ['tuba', 3, 3, 44, 54],
   ['glock', 4, 4, -40, -14], ['xylo', 4, 4, -62, -44], ['marimba', 4, 4, -62, -44], ['vibra', 4, 4, -62, -44],
-  ['timpani', 4, 4, 10, 36], ['snare', 4, 4, 40, 54], ['drum', 4, 4, 40, 54], ['cymbal', 4, 4, 56, 64],
-  ['choir', 5, 5, -60, 60], ['voice', 5, 5, -60, 60], ['vocal', 5, 5, -60, 60], ['sing', 5, 5, -60, 60],
+  ['timpani', 4, 4, 10, 36], ['drum', 4, 4, 40, 46],
+  ['cymbals', 5, 5, -40, -28], ['hihat', 5, 5, -26, -15], ['snare', 5, 5, -13, -2], ['kick', 5, 5, 0, 12], ['toms', 5, 5, 14, 26], ['claps', 5, 5, 28, 40],
+  ['choir', 3, 3, 20, 56], ['voice', 3, 3, 20, 56], ['vocal', 3, 3, 20, 56], ['sing', 3, 3, 20, 56],
 ];
-const FAMILY_ZONE = { strings: [1, 2, -66, -40], woodwinds: [2, 2, -50, 50], brass: [3, 3, -56, 56], percussion: [4, 4, -64, 64], keys: [3, 3, 70, 84], voice: [5, 5, -60, 60], vocals: [5, 5, -60, 60], choir: [5, 5, -60, 60] };
+const FAMILY_ZONE = { strings: [1, 2, -66, -40], woodwinds: [2, 2, -50, 50], brass: [3, 3, -56, 56], percussion: [4, 4, -64, 64], keys: [3, 3, 70, 84], voice: [3, 3, 20, 56], voices: [3, 3, 20, 56], vocals: [3, 3, 20, 56], choir: [3, 3, 20, 56], drums: [5, 5, -40, 40] };
 const POSES = [['violin', 'violin'], ['viola', 'violin'], ['fiddle', 'violin'], ['contrabass', 'cello'], ['doublebass', 'cello'], ['cello', 'cello'], ['bassoon', 'reed'], ['bass', 'cello'],
   ['flute', 'flute'], ['piccolo', 'flute'], ['clarinet', 'reed'], ['oboe', 'reed'], ['sax', 'reed'], ['trumpet', 'trumpet'], ['cornet', 'trumpet'], ['trombone', 'trumpet'],
   ['horn', 'horn'], ['tuba', 'horn'], ['harp', 'harp'], ['piano', 'piano'], ['celesta', 'piano'], ['organ', 'piano'], ['glock', 'glock'], ['xylo', 'glock'], ['marimba', 'glock'], ['vibra', 'glock'],
-  ['timpani', 'timpani'], ['drum', 'timpani'], ['snare', 'timpani'], ['choir', 'choir'], ['voice', 'choir'], ['vocal', 'choir'], ['sing', 'choir']];
-const FAMILY_POSE = { strings: 'violin', woodwinds: 'reed', brass: 'trumpet', percussion: 'timpani', keys: 'piano', voice: 'choir', vocals: 'choir', choir: 'choir' };
+  ['timpani', 'timpani'], ['kick', 'kick'], ['snare', 'snare'], ['hihat', 'hihat'], ['hi-hat', 'hihat'], ['tom', 'toms'], ['cymbal', 'cymbal'], ['clap', 'claps'], ['drum', 'toms'], ['choir', 'choir'], ['voice', 'choir'], ['vocal', 'choir'], ['sing', 'choir']];
+const FAMILY_POSE = { strings: 'violin', woodwinds: 'reed', brass: 'trumpet', percussion: 'timpani', keys: 'piano', voice: 'choir', voices: 'choir', vocals: 'choir', choir: 'choir', drums: 'toms' };
 const find = (list, id) => list.find((z) => z[0] === id) || list.find((z) => id.includes(z[0]));
 const poseOf = (id, fam) => (find(POSES, id) || [0, FAMILY_POSE[fam] || 'choir'])[1];
 // hit boxes in local units [left, right, top]
 const BOUNDS = { violin: [-26, 40, -100], cello: [-26, 24, -102], flute: [-50, 22, -100], reed: [-24, 24, -100], trumpet: [-26, 26, -100], horn: [-30, 26, -100],
-  harp: [-56, 22, -128], piano: [-22, 100, -104], glock: [-32, 32, -112], timpani: [-38, 38, -112], choir: [-24, 24, -112] };
-const STANDING = { glock: 1, timpani: 1, choir: 1 };
+  harp: [-56, 22, -128], piano: [-22, 100, -104], glock: [-32, 32, -112], timpani: [-38, 38, -112], choir: [-24, 24, -112],
+  kick: [-24, 24, -100], snare: [-24, 24, -100], hihat: [-24, 26, -100], toms: [-24, 24, -100], cymbal: [-30, 24, -100], claps: [-24, 24, -112] };
+const STANDING = { glock: 1, timpani: 1, choir: 1, claps: 1 };
 
 // ---------- geometry ----------
 let W = 1, H = 1, DPR = 1, S = 1, CX = 0, CY = 0, RX = 1, RY = 1, LU = 1, FIGH = 1, SIDE = 0, VAL = 0, BACKY = 0;
@@ -127,7 +145,7 @@ function makeFig(seat, i) {
     appear: 0, leaving: false, lit: 0, rise: 0, hit: 0, flash: 0, hov: 0, was: false, cyc: 0, pending: false,
     bowU: 0.5, bowFrom: 0.5, bowTo: 0.5, bowT0: 0, bowDur: 300, bowDir: 1,
     strike: 0, side: 0, sx: 0, amps: new Float32Array(12), lastGlyph: 0, midi: 60,
-    v: seat.id % 3, sway: hash(seat.id) * TAU,
+    v: seat.id % 3, sway: hash(seat.id) * TAU, live: 0, sel: 0,
   };
 }
 
@@ -215,6 +233,10 @@ function analyse(dt) {
 }
 
 // ---------- events ----------
+let selInst = null, selSeat = null, selFam = null;
+const isSel = (f) => (selSeat != null ? f.id === selSeat : selInst ? f.seat.inst === selInst : selFam ? f.inst.family === selFam : false);
+addEventListener('orch:select', (e) => { const d = e.detail || {}; selSeat = d.seat ?? null; selInst = d.inst ?? null; selFam = d.family ?? null; });
+addEventListener('orch:theme', () => requestAnimationFrame(readTheme));
 addEventListener('orch:change', relayout);
 addEventListener('orch:beat', (e) => {
   const { beat } = e.detail;
@@ -242,6 +264,7 @@ const W2 = (f, lx, ly) => [f.x + (lx * f.h) / 100, f.y + (ly * f.h) / 100];
 function onNote(f, d, now) {
   const P_ = pal(f.inst), vel = d.vel || 0.8, dur = (d.dur || 0.4) * 1000;
   f.hit = Math.min(1, 0.5 + vel * 0.5); f.midi = d.midi;
+  if (d.live) f.live = 1;
   let gx, gy;
   switch (f.pose) {
     case 'violin': case 'cello':
@@ -269,6 +292,14 @@ function onNote(f, d, now) {
       gx = x; gy = y - f.h * 0.2; break;
     }
     case 'piano': f.side ^= 1; f.strike = 1; [gx, gy] = W2(f, 10, -60); break;
+    case 'kick': case 'snare': case 'hihat': case 'toms': case 'cymbal': case 'claps': {
+      f.side ^= 1; f.strike = 1;
+      [gx, gy] = W2(f, f.pose === 'cymbal' ? 2 : 0, f.pose === 'kick' ? -23 : f.pose === 'cymbal' ? -73 : -50);
+      if (f.pose === 'kick') { const p = spawn(RING, gx, gy, 0, 0, 0.6, f.h * 0.5 * (0.6 + vel * 0.5), P_.bright, null); if (p) p.q = 1; if (!reduced) shake = Math.max(shake, 0.4 * vel); }
+      else if (f.pose === 'cymbal' && !reduced) burst(gx, gy, 4, 45, 'hsl(48 100% 75%)', WARM);
+      else if (f.pose === 'claps' && !reduced) burst(gx, gy - f.h * 0.15, 3, 30, P_.bright, P_.glow);
+      break;
+    }
     case 'trumpet': case 'horn': {
       f.flash = 1;
       [gx, gy] = f.pose === 'trumpet' ? W2(f, 0, -78) : W2(f, -22, -60);
@@ -320,6 +351,7 @@ cv.addEventListener('click', (e) => {
   interacted = true;
   if (h === cond) { activeN ? O.stopAll() : O.tutti(); return; }
   if (e.shiftKey || e.altKey) O.setLoop(h.seat, !h.seat.loop); else O.toggle(h.seat);
+  dispatchEvent(new CustomEvent('orch:select', { detail: { inst: h.seat.inst, seat: h.id, family: h.inst.family, source: 'stage' } }));
 });
 cv.addEventListener('contextmenu', (e) => {
   pointer(e); const h = hover; if (!h || h === cond) return;
@@ -332,12 +364,12 @@ function fit() {
   W = w; H = h; DPR = Math.min(2, devicePixelRatio || 1);
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   S = clamp(Math.min(W / 1100, H / 520), 0.42, 1.4);
-  SIDE = Math.max(14, W * 0.055); VAL = Math.max(20, H * 0.075);
-  FIGH = H * 0.135 * clamp(W / (H * 1.7), 0.56, 1);
+  SIDE = Math.max(10, W * 0.025); VAL = Math.max(12, H * 0.035);
+  FIGH = H * 0.15 * clamp(W / (H * 1.6), 0.6, 1);
   CX = W / 2; CY = H * 0.84; RY = H * 0.44; LU = H * 0.02;
   RX = Math.min((W / 2 - SIDE - FIGH * 0.6) / 0.64, H * 1.25);
   BACKY = CY - 1.12 * RY - 5.4 * LU;
-  CHAND = W < 640 ? [[W * 0.2, VAL + 26 * S, 0.8]] .concat([[W * 0.8, VAL + 26 * S, 0.8]]) : [[W * 0.19, VAL + 34 * S, 1], [W * 0.81, VAL + 34 * S, 1]];
+  CHAND = W < 640 ? [[W * 0.18, VAL + 30 * S, 0.8], [W * 0.82, VAL + 30 * S, 0.8]] : [[W * 0.17, VAL + 40 * S, 1], [W * 0.83, VAL + 40 * S, 1]];
   cond.x = cond.tx = CX; cond.y = CY + H * 0.05; cond.h = FIGH * 1.34;
   renderBg(); renderFg();
   for (const f of figs) { f.placed = false; place(f); }
@@ -354,11 +386,16 @@ function arcPath(c, r, lift, d0, d1, move) {
 function renderBg() {
   bg.width = cv.width; bg.height = cv.height;
   const c = bgg; c.setTransform(DPR, 0, 0, DPR, 0, 0);
-  let gr = c.createLinearGradient(0, 0, 0, BACKY + 30);
-  gr.addColorStop(0, '#0b0709'); gr.addColorStop(0.7, '#1f1016'); gr.addColorStop(1, '#2a151b');
-  c.fillStyle = gr; c.fillRect(0, 0, W, H);
+  const D = TH.light;
+  c.fillStyle = TH.stageBg; c.fillRect(0, 0, W, H);
+  let gr = c.createRadialGradient(CX, BACKY, 0, CX, BACKY, Math.max(W, H) * 0.7);
+  gr.addColorStop(0, TH.velvet); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  c.globalAlpha = D ? 0.18 : 0.55; c.fillStyle = gr; c.fillRect(0, 0, W, BACKY + 10); c.globalAlpha = 1;
+  gr = c.createLinearGradient(0, 0, 0, BACKY);
+  gr.addColorStop(0, D ? 'rgba(70,40,20,0.22)' : 'rgba(0,0,0,0.65)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = gr; c.fillRect(0, 0, W, BACKY);
   // panelled hall wall
-  c.fillStyle = 'rgba(255,200,150,0.03)';
+  c.fillStyle = D ? 'rgba(110,70,30,0.10)' : 'rgba(255,200,150,0.03)';
   for (let x = SIDE; x < W - SIDE; x += 16 * S) c.fillRect(x, 0, 1, BACKY);
   c.fillStyle = 'rgba(232,176,74,0.10)'; c.fillRect(0, BACKY - 6 * S, W, 1.5);
   // organ pipes behind the orchestra
@@ -377,37 +414,23 @@ function renderBg() {
   }
   // stage floor
   const front = CY + H * 0.07;
+  c.fillStyle = TH.floor; c.beginPath(); c.moveTo(0, BACKY); c.lineTo(W, BACKY); c.lineTo(W, front); c.quadraticCurveTo(CX, front + H * 0.05, 0, front); c.fill();
   gr = c.createLinearGradient(0, BACKY, 0, front);
-  gr.addColorStop(0, '#1e110b'); gr.addColorStop(1, '#5b3520');
-  c.fillStyle = gr; c.beginPath(); c.moveTo(0, BACKY); c.lineTo(W, BACKY); c.lineTo(W, front); c.quadraticCurveTo(CX, front + H * 0.05, 0, front); c.fill();
+  gr.addColorStop(0, D ? 'rgba(40,20,8,0.35)' : 'rgba(0,0,0,0.7)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = gr; c.fill();
   c.strokeStyle = 'rgba(0,0,0,0.22)'; c.lineWidth = 1;
   for (let k = 1; k < 20; k++) { const y = BACKY + (front - BACKY) * Math.pow(k / 20, 1.5); c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
-  c.fillStyle = '#060306'; c.beginPath(); c.moveTo(0, front); c.quadraticCurveTo(CX, front + H * 0.05, W, front); c.lineTo(W, H); c.lineTo(0, H); c.fill();
+  c.fillStyle = D ? '#4a2a2c' : '#060306'; c.beginPath(); c.moveTo(0, front); c.quadraticCurveTo(CX, front + H * 0.05, W, front); c.lineTo(W, H); c.lineTo(0, H); c.fill();
   c.strokeStyle = 'rgba(255,190,120,0.35)'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(0, front); c.quadraticCurveTo(CX, front + H * 0.05, W, front); c.stroke();
   // risers, back to front
   for (let i = 5; i >= 1; i--) {
     const rin = ROWS[i] - 0.07, rout = i === 5 ? 1.2 : ROWS[i + 1] - 0.07;
     c.beginPath(); arcPath(c, rout, LIFTS[i], -100, 100, true); arcPath(c, rin, LIFTS[i], 100, -100, false); c.closePath();
-    c.fillStyle = `hsl(22 36% ${14 + (5 - i) * 1.8}%)`; c.fill();
+    c.fillStyle = TH.floor; c.fill(); c.fillStyle = D ? `rgba(60,30,10,${0.04 + i * 0.03})` : `rgba(0,0,0,${0.2 + i * 0.07})`; c.fill();
     c.beginPath(); arcPath(c, rin, LIFTS[i], -100, 100, true); arcPath(c, rin, LIFTS[i - 1], 100, -100, false); c.closePath();
-    c.fillStyle = `hsl(18 40% ${5 + (5 - i) * 0.8}%)`; c.fill();
+    c.fillStyle = TH.floor; c.fill(); c.fillStyle = D ? 'rgba(40,18,6,0.45)' : 'rgba(0,0,0,0.72)'; c.fill();
     c.beginPath(); arcPath(c, rin, LIFTS[i], -100, 100, true); c.strokeStyle = 'rgba(255,196,130,0.30)'; c.lineWidth = 1; c.stroke();
   }
-}
-function curtain(c, flip) {
-  c.save(); if (flip) { c.translate(W, 0); c.scale(-1, 1); }
-  const w = SIDE, tieY = H * 0.66;
-  const gr = c.createLinearGradient(0, 0, w * 1.5, 0);
-  for (let i = 0; i <= 10; i++) gr.addColorStop(i / 10, i % 2 ? '#821826' : '#2a040a');
-  c.fillStyle = gr;
-  c.beginPath(); c.moveTo(0, 0); c.lineTo(w * 1.3, 0);
-  c.quadraticCurveTo(w * 0.75, H * 0.4, w * 1.45, tieY);
-  c.quadraticCurveTo(w * 0.8, H * 0.82, w * 1.05, H); c.lineTo(0, H); c.closePath(); c.fill();
-  c.strokeStyle = 'rgba(255,130,110,0.28)'; c.lineWidth = 1.2;
-  c.beginPath(); c.moveTo(w * 1.3, 0); c.quadraticCurveTo(w * 0.75, H * 0.4, w * 1.45, tieY); c.quadraticCurveTo(w * 0.8, H * 0.82, w * 1.05, H); c.stroke();
-  c.fillStyle = '#c99a3e'; c.beginPath(); c.ellipse(w * 1.25, tieY, 6 * S, 3.5 * S, 0.3, 0, TAU); c.fill();
-  c.strokeStyle = '#c99a3e'; c.lineWidth = 1.5 * S; c.beginPath(); c.moveTo(w * 1.3, tieY); c.lineTo(w * 1.36, tieY + 22 * S); c.stroke();
-  c.restore();
 }
 function renderFg() {
   fg.width = cv.width; fg.height = cv.height;
@@ -417,32 +440,21 @@ function renderFg() {
     const step = 40 * S * sz;
     for (let i = 0, x = -10; x < W + 40; i++, x += step) {
       const jx = x + (hash(i + seed * 31) - 0.5) * step * 0.4, jy = y0 + (hash(i * 3 + seed) - 0.5) * 6 * S, hs = sz * S * (0.9 + hash(i + seed) * 0.25);
-      c.fillStyle = '#050307';
+      c.fillStyle = TH.light ? '#2a1c20' : '#050307';
       c.beginPath(); c.ellipse(jx, jy + 20 * hs, 26 * hs, 15 * hs, 0, 0, TAU); c.fill();
       c.beginPath(); c.ellipse(jx, jy, 10 * hs, 12.5 * hs, 0, 0, TAU); c.fill();
       c.strokeStyle = 'rgba(255,190,130,0.22)'; c.lineWidth = 1.2;
       c.beginPath(); c.ellipse(jx, jy, 10 * hs, 12.5 * hs, 0, Math.PI * 1.15, Math.PI * 1.85); c.stroke();
     }
   }
-  curtain(c, false); curtain(c, true);
-  // valance with swags + gold fringe
-  let gr = c.createLinearGradient(0, 0, 0, VAL * 1.3);
-  gr.addColorStop(0, '#2c040b'); gr.addColorStop(1, '#781424');
-  c.fillStyle = gr;
-  const nS = Math.max(3, Math.round(W / (170 * S))), sw = W / nS;
-  const swags = (move) => { if (move) c.moveTo(W, VAL * 0.7); for (let i = nS - 1; i >= 0; i--) c.quadraticCurveTo((i + 0.5) * sw, VAL * 1.3, i * sw, VAL * 0.7); };
-  c.beginPath(); c.moveTo(0, 0); c.lineTo(W, 0); c.lineTo(W, VAL * 0.7); swags(false); c.closePath(); c.fill();
-  c.strokeStyle = '#caa04a'; c.lineWidth = 2.2 * S; c.setLineDash([1.5 * S, 2.5 * S]);
-  c.beginPath(); swags(true); c.stroke(); c.setLineDash([]);
-  c.fillStyle = '#caa04a'; c.fillRect(0, VAL * 0.18, W, 1.5 * S);
   // vignette
-  gr = c.createRadialGradient(CX, H * 0.55, Math.min(W, H) * 0.35, CX, H * 0.55, Math.max(W, H) * 0.8);
-  gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.55)');
+  const gr = c.createRadialGradient(CX, H * 0.55, Math.min(W, H) * 0.35, CX, H * 0.55, Math.max(W, H) * 0.8);
+  gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, TH.light ? 'rgba(60,30,10,0.22)' : 'rgba(0,0,0,0.55)');
   c.fillStyle = gr; c.fillRect(0, 0, W, H);
 }
 
 // ---------- musicians ----------
-function lightIdx(f) { return Math.round(10 * clamp(lerp(0.4, 0.14, house) + f.lit * 0.86 + f.hov * 0.3, 0, 1)); }
+function lightIdx(f) { return Math.round(10 * clamp(lerp(TH.light ? 0.62 : 0.4, TH.light ? 0.42 : 0.14, house) + f.lit * 0.86 + f.hov * 0.3 + f.sel * 0.2, 0, 1)); }
 function arm(x1, y1, x2, y2, bend, L) {
   const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, dx = x2 - x1, dy = y2 - y1, d = Math.hypot(dx, dy) || 1;
   g.strokeStyle = C.suit[L]; g.lineWidth = 6.5;
@@ -487,11 +499,11 @@ function upper(f, L, lift, stand, P_, robe) {
 }
 
 function drawFloorRing(f, P_) {
-  const a = Math.max(f.lit, f.hov); if (a < 0.03) return;
+  const a = Math.max(f.lit, f.hov, f.sel); if (a < 0.03) return;
   const rx = BOUNDS[f.pose] === BOUNDS.piano ? 30 : 26, ry = 6.5, s0 = Math.PI / 2;
   g.strokeStyle = P_.bright; g.lineWidth = 1.4;
   g.globalAlpha = f.appear * 0.2 * a; g.beginPath(); g.ellipse(0, -1, rx, ry, 0, 0, TAU); g.stroke();
-  if (f.lit > 0.03) {
+  if (f.lit > 0.03 && f.seat.active) {
     const ph = f.pending ? 0 : f.cyc % 1;
     g.globalAlpha = f.appear * f.lit;
     if (f.seat.loop) {
@@ -514,7 +526,7 @@ function drawFig(f, now) {
   g.globalAlpha = f.appear;
   drawFloorRing(f, P_);
   if (!reduced && r > 0.01) g.rotate(Math.sin(T * 1.7 + f.sway) * 0.022 * r);
-  POSE_DRAW[f.pose](f, L, r, lift, P_, now);
+  (POSE_DRAW[f.pose] || POSE_DRAW.choir)(f, L, r, lift, P_, now);
   g.restore();
 }
 
@@ -710,7 +722,84 @@ const POSE_DRAW = {
     g.fillStyle = '#1a0b0b'; g.beginPath(); g.ellipse(0, my, 2.3, 0.8 + f.hit * 2.6 * r, 0, 0, TAU); g.fill();
     if (f.hit > 0.05) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = f.appear * f.hit * 0.45; g.drawImage(P_.glow, -22, my - 26, 44, 44); g.globalCompositeOperation = 'source-over'; g.globalAlpha = f.appear; }
   },
+  // ---- drum kit pieces (family 'drums'), one player + piece per seat ----
+  kick(f, L, r, lift, P_) {
+    chair(L); legs(L, -33, false);
+    const sy = upper(f, L, lift + f.strike * 2, 0, P_);
+    const sc = 1 + f.strike * 0.05, R = 21 * sc;
+    g.fillStyle = C.gloss[L]; g.beginPath(); g.arc(0, -23, R + 2.5, 0, TAU); g.fill();
+    g.fillStyle = C.vellum[L]; g.beginPath(); g.arc(0, -23, R, 0, TAU); g.fill();
+    g.strokeStyle = P_.bright; g.lineWidth = 2.4; g.globalAlpha = f.appear * (0.45 + f.lit * 0.55); g.beginPath(); g.arc(0, -23, R * 0.55, 0, TAU); g.stroke();
+    if (f.strike > 0.03) { g.lineWidth = 1.2; g.globalAlpha = f.appear * f.strike; g.beginPath(); g.arc(0, -23, R * (1.05 - f.strike * 0.6), 0, TAU); g.stroke(); }
+    g.globalAlpha = f.appear;
+    sticks(f, L, r, sy, [-12, -50], [12, -50], 0);
+  },
+  snare(f, L, r, lift, P_) {
+    chair(L); legs(L, -33, false);
+    const sy = upper(f, L, lift, 0, P_);
+    line(-8, -34, -12, 0, 1.4, C.silver[L]); line(8, -34, 12, 0, 1.4, C.silver[L]);
+    g.fillStyle = P_.deep; g.fillRect(-13, -42, 26, 8);
+    g.fillStyle = C.silver[L]; g.fillRect(-13, -42, 26, 1.2); g.fillRect(-13, -35, 26, 1.2);
+    g.fillStyle = C.vellum[L]; g.beginPath(); g.ellipse(0, -42, 13, 3.6, 0, 0, TAU); g.fill();
+    if (f.strike > 0.03) { g.strokeStyle = P_.bright; g.globalAlpha = f.appear * f.strike; g.lineWidth = 1; g.beginPath(); g.ellipse(0, -42, 13 * (1.1 - f.strike * 0.7), 3.6 * (1.1 - f.strike * 0.7), 0, 0, TAU); g.stroke(); g.globalAlpha = f.appear; }
+    sticks(f, L, r, sy, [-5, -44], [5, -44], 14);
+  },
+  hihat(f, L, r, lift, P_) {
+    chair(L); legs(L, -33, false);
+    const sy = upper(f, L, lift, 0, P_);
+    line(16, 0, 16, -56, 1.4, C.silver[L]);
+    const gap = 1.6 + f.strike * 2.4, wob = reduced ? 0 : Math.sin(T * 40) * f.strike * 0.12;
+    g.fillStyle = C.brass[L];
+    g.save(); g.translate(16, -56); g.rotate(wob);
+    g.beginPath(); g.ellipse(0, 0, 12, 2, 0, 0, TAU); g.fill();
+    g.beginPath(); g.ellipse(0, -gap, 12, 2, 0, 0, TAU); g.fill();
+    g.restore();
+    sticks(f, L, r, sy, [10, -60], [-4, -44], 10, true);
+  },
+  toms(f, L, r, lift, P_) {
+    chair(L); legs(L, -33, false);
+    const sy = upper(f, L, lift, 0, P_);
+    for (const x of [-10, 10]) {
+      g.fillStyle = P_.deep; g.fillRect(x - 9, -48, 18, 10);
+      g.fillStyle = C.vellum[L]; g.beginPath(); g.ellipse(x, -48, 9, 2.8, 0, 0, TAU); g.fill();
+      const hitThis = f.side === (x > 0 ? 1 : 0) ? f.strike : 0;
+      if (hitThis > 0.03) { g.strokeStyle = P_.bright; g.globalAlpha = f.appear * hitThis; g.lineWidth = 1.2; g.beginPath(); g.ellipse(x, -48, 9 * (1.2 - hitThis * 0.8), 2.8, 0, 0, TAU); g.stroke(); g.globalAlpha = f.appear; }
+    }
+    line(0, -38, 0, 0, 1.4, C.silver[L]);
+    sticks(f, L, r, sy, [-10, -50], [10, -50], 14);
+  },
+  cymbal(f, L, r, lift, P_) {
+    chair(L); legs(L, -33, false);
+    const sy = upper(f, L, lift, 0, P_);
+    line(20, 0, 20, -62, 1.4, C.silver[L]); line(20, -62, 4, -72, 1.4, C.silver[L]);
+    const wob = reduced ? 0 : Math.sin(T * 26) * f.strike * 0.3;
+    g.save(); g.translate(2, -73); g.rotate(-0.12 + wob);
+    if (f.strike > 0.03 && !TH.light) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = f.appear * f.strike * 0.8; g.drawImage(WARM, -30, -20, 60, 40); g.globalCompositeOperation = 'source-over'; g.globalAlpha = f.appear; }
+    g.fillStyle = C.brass[Math.min(10, L + Math.round(f.strike * 4))]; g.beginPath(); g.ellipse(0, 0, 19, 3.2 + wob * 4, 0, 0, TAU); g.fill();
+    g.fillStyle = C.brass[Math.max(0, L - 3)]; g.beginPath(); g.arc(0, -0.5, 2.4, 0, TAU); g.fill();
+    g.restore();
+    sticks(f, L, r, sy, [-14, -74], [10, -50], 10, true);
+  },
+  claps(f, L, r, lift, P_) {
+    legs(L, -47, true);
+    const sy = upper(f, L, lift * 0.6, 14, P_);
+    const open = 10 * (1 - f.strike) * r + 2, hy = lerp(-44, -66 - lift, r);
+    arm(-16, sy, -open, hy, -7, L); hand(f, -open, hy, L);
+    arm(16, sy, open, hy, 7, L); hand(f, open, hy, L);
+    if (f.strike > 0.3 && !reduced) { g.globalAlpha = f.appear * f.strike; g.strokeStyle = P_.bright; g.lineWidth = 1; for (let i = -1; i <= 1; i++) { g.beginPath(); g.moveTo(i * 5, hy - 6); g.lineTo(i * 9, hy - 13); g.stroke(); } g.globalAlpha = f.appear; }
+  },
 };
+// drum sticks: the striking hand (f.side) comes down on its target; `oneHand` = only the right hand plays
+function sticks(f, L, r, sy, tl, tr, hoverH, oneHand) {
+  const s = f.strike, up = (1 - s) * (1 - s) * (hoverH || 12);
+  const hitL = !oneHand && f.side === 0 && s > 0.02, hitR = (oneHand || f.side === 1) && s > 0.02;
+  const tipL = [tl[0], tl[1] - (hitL ? up : hoverH || 12)], tipR = [tr[0], tr[1] - (hitR ? up : hoverH || 12)];
+  const hL = [lerp(-14, tipL[0] - 6, r), lerp(-40, tipL[1] + 8, r)], hR = [lerp(14, tipR[0] + 6, r), lerp(-40, tipR[1] + 8, r)];
+  const eL = [lerp(-16, tipL[0], r), lerp(-28, tipL[1], r)], eR = [lerp(16, tipR[0], r), lerp(-28, tipR[1], r)];
+  line(hL[0], hL[1], eL[0], eL[1], 1.4, C.vellum[L]); line(hR[0], hR[1], eR[0], eR[1], 1.4, C.vellum[L]);
+  arm(-16, sy, hL[0], hL[1], -7, L); hand(f, hL[0], hL[1], L);
+  arm(16, sy, hR[0], hR[1], 7, L); hand(f, hR[0], hR[1], L);
+}
 // two mallets: one strikes (f.side) at f.sx / drum, the other hovers
 function mallets(f, L, r, sy, surfaceY, lx, rx, hoverH) {
   const s = f.strike, lift = (1 - s) * (1 - s);
@@ -726,6 +815,19 @@ function mallets(f, L, r, sy, surfaceY, lx, rx, hoverH) {
   g.fillStyle = C.wood[Math.min(10, L + 2)]; g.beginPath(); g.arc(mL[0], mL[1], 2.6, 0, TAU); g.moveTo(mR[0] + 2.6, mR[1]); g.arc(mR[0], mR[1], 2.6, 0, TAU); g.fill();
   arm(-16, sy, hL[0], hL[1], -7, L); hand(f, hL[0], hL[1], L);
   arm(16, sy, hR[0], hR[1], 7, L); hand(f, hR[0], hR[1], L);
+}
+
+function drawSelection() {
+  let any = false;
+  for (const f of figs) {
+    if (f.sel < 0.03 || f.appear < 0.3) continue;
+    any = true;
+    const top = f.y - f.h * (STANDING[f.pose] ? 1.16 : 1.04) - (f.pose === 'harp' ? f.h * 0.26 : 0) - (reduced ? 0 : Math.sin(T * 4) * 2 * S) - 6 * S;
+    const s = 6 * S * clamp(f.h / 60, 0.7, 1.2);
+    g.globalAlpha = f.sel; g.fillStyle = TH.accent; g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(f.x - s, top - s * 1.1); g.lineTo(f.x + s, top - s * 1.1); g.lineTo(f.x, top); g.closePath(); g.fill(); g.stroke();
+  }
+  if (any) g.globalAlpha = 1;
 }
 
 // ---------- conductor ----------
@@ -795,20 +897,20 @@ function drawTrail() {
 function drawLights() {
   g.globalCompositeOperation = 'lighter';
   // organ / back-wall breath
-  const ga = 0.06 + level * 0.32 + tutti * 0.15;
+  const ga = (0.06 + level * 0.32 + tutti * 0.15) * TH.lit;
   g.globalAlpha = ga; g.drawImage(WARM, CX - W * 0.32, BACKY - H * 0.32, W * 0.64, H * 0.5);
   if (tutti > 0.02 && nHues) { g.globalAlpha = tutti * (0.18 + level * 0.25); g.drawImage(glowSprite(Math.round(activeHues[Math.floor(T * 0.4) % nHues])), CX - W * 0.4, BACKY - H * 0.25, W * 0.8, H * 0.6); }
   for (const f of figs) {
     if (f.lit < 0.02) continue;
-    const P_ = pal(f.inst), w = f.h * 1.15, a = f.lit * f.appear;
+    const P_ = pal(f.inst), w = f.h * 1.15, a = f.lit * f.appear * TH.lit;
     g.globalAlpha = a * (0.16 + level * 0.12);
     g.drawImage(SPOT, f.x - w / 2, VAL * 0.6, w, f.y - VAL * 0.6 + f.h * 0.08);
     g.globalAlpha = a * 0.55; g.drawImage(WARM, f.x - w * 0.6, f.y - f.h * 0.12, w * 1.2, f.h * 0.24);
     g.globalAlpha = a * (0.22 + f.hit * 0.35); g.drawImage(P_.glow, f.x - w * 0.5, f.y - f.h * 0.04, w, f.h * 0.55);
   }
   for (const f of figs) {
-    if (f.hov < 0.02) continue;
-    g.globalAlpha = f.hov * 0.5; g.drawImage(pal(f.inst).glow, f.x - f.h * 0.7, f.y - f.h * 1.1, f.h * 1.4, f.h * 1.2);
+    const hv = Math.max(f.hov, f.sel * 0.7); if (hv < 0.02) continue;
+    g.globalAlpha = hv * 0.5 * (TH.light ? 0.7 : 1); g.drawImage(pal(f.inst).glow, f.x - f.h * 0.7, f.y - f.h * 1.1, f.h * 1.4, f.h * 1.2);
   }
   g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
 }
@@ -820,7 +922,7 @@ function drawBeams() {
     const x = SIDE + ((W - SIDE * 2) * (i + 0.5)) / n, ang = (reduced ? 0.25 : Math.sin(T * 0.55 + i * 1.7)) * 0.5 + (i < n / 2 ? 0.12 : -0.12);
     const hue = activeHues[(i + Math.floor(T * 0.35)) % nHues];
     g.save(); g.translate(x, VAL * 0.5); g.rotate(ang);
-    g.globalAlpha = tutti * (0.1 + level * 0.22);
+    g.globalAlpha = tutti * (0.1 + level * 0.22) * TH.lit;
     g.drawImage(coneSprite(Math.round(hue), 95, 68), -W * 0.07, 0, W * 0.14, H * 1.05);
     g.restore();
   }
@@ -848,16 +950,13 @@ function drawChandeliers() {
   }
   g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
 }
-function drawCurtainShimmer() {
-  const a = 0.04 + hi * 0.35 + tutti * 0.08; if (a < 0.02) return;
+function drawOrganShimmer() {
+  const a = (0.03 + hi * 0.3 + tutti * 0.1) * TH.lit; if (a < 0.02) return;
   g.globalCompositeOperation = 'lighter';
-  const pos = reduced ? 0.5 : (T * 0.12) % 1.6 - 0.3;
-  for (const flip of [0, 1]) {
-    const x0 = flip ? W - SIDE * 1.5 : 0;
-    const gr = g.createLinearGradient(0, H * (pos - 0.25), 0, H * (pos + 0.25));
-    gr.addColorStop(0, 'rgba(255,90,90,0)'); gr.addColorStop(0.5, `rgba(255,120,110,${a})`); gr.addColorStop(1, 'rgba(255,90,90,0)');
-    g.fillStyle = gr; g.fillRect(x0, 0, SIDE * 1.5, H);
-  }
+  const ow = Math.min(W * 0.46, 620 * S), x0 = CX - ow / 2, pos = reduced ? 0.5 : (T * 0.18) % 1.6 - 0.3;
+  const gr = g.createLinearGradient(x0 + ow * (pos - 0.2), 0, x0 + ow * (pos + 0.2), 0);
+  gr.addColorStop(0, 'rgba(255,214,140,0)'); gr.addColorStop(0.5, `rgba(255,224,160,${a})`); gr.addColorStop(1, 'rgba(255,214,140,0)');
+  g.fillStyle = gr; g.fillRect(x0, VAL, ow, BACKY - VAL);
   g.globalCompositeOperation = 'source-over';
 }
 
@@ -871,11 +970,13 @@ function drawParticles(dt, bA, bE, bF) {
     const k = p.life / p.max;
     p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
     if (p.t === GLYPH) {
+      if (TH.light) g.globalCompositeOperation = 'source-over';
       p.vy *= 1 - 0.35 * dt; p.vx += Math.sin(p.life * 3 + i) * 8 * S * dt;
       const a = k < 0.12 ? k / 0.12 : 1 - (k - 0.12) / 0.88, sc = (p.size / 20) * (0.85 + 0.35 * k), c = Math.cos(p.rot) * sc * bA, s = Math.sin(p.rot) * sc * bA;
       g.setTransform(c, s, -s, c, bA * p.x + bE, bA * p.y + bF);
-      g.globalAlpha = a * 0.6; g.drawImage(p.spr, -22, -22, 44, 44);
+      g.globalAlpha = a * (TH.light ? 0.25 : 0.6); g.drawImage(p.spr, -22, -22, 44, 44);
       g.globalAlpha = a; g.fillStyle = p.col; g.fillText(p.ch, 0, 0);
+      if (TH.light) g.globalCompositeOperation = 'lighter';
     } else if (p.t === STAR) {
       p.vx *= 1 - 2 * dt; p.vy *= 1 - 2 * dt;
       const sz = p.size * (1 - k * 0.6), c = Math.cos(p.rot) * bA, s = Math.sin(p.rot) * bA;
@@ -900,12 +1001,13 @@ function drawParticles(dt, bA, bE, bF) {
 
 // ---------- label ----------
 function drawLabel() {
-  const f = hover; if (!f) return;
+  const f = hover || (selSeat != null ? figMap.get(selSeat) : null); if (!f) return;
   let title, state, x, y, hue;
   if (f === cond) { title = 'The conductor'; state = activeN ? 'click to stop everyone' : 'click for tutti'; x = cond.x; y = cond.y - cond.h * 1.12; hue = 42; }
   else {
     if (f.leaving) return;
-    title = `${f.inst.name || f.inst.id} ${f.seat.k + 1}`;
+    const layers = f.inst.layers, layer = layers && layers.length ? layers[f.seat.k % layers.length] : '';
+    title = `${f.inst.name || f.inst.id} ${f.seat.k + 1}` + (layer ? ` · ${layer}` : '');
     state = (f.seat.active ? (f.seat.loop ? 'playing · looping' : 'playing once') : f.seat.loop ? 'resting · will loop' : 'resting · plays once');
     x = f.x; y = f.y - f.h * (STANDING[f.pose] ? 1.18 : 1.06) - (f.pose === 'harp' ? f.h * 0.25 : 0); hue = pal(f.inst).h;
   }
@@ -915,20 +1017,20 @@ function drawLabel() {
   const sw = g.measureText(state.toUpperCase()).width;
   const w = Math.max(tw, sw) + 22, h = 40 * clamp(S, 0.85, 1.1);
   x = clamp(x, w / 2 + 6, W - w / 2 - 6); y = Math.max(h + 6, y);
-  g.fillStyle = 'rgba(14,10,16,0.88)'; g.strokeStyle = `hsl(${hue} 70% 62% / 0.7)`; g.lineWidth = 1;
+  g.fillStyle = TH.light ? 'rgba(252,246,236,0.94)' : 'rgba(14,10,16,0.88)'; g.strokeStyle = `hsl(${hue} 70% ${TH.light ? 40 : 62}% / 0.7)`; g.lineWidth = 1;
   g.beginPath();
   if (g.roundRect) g.roundRect(x - w / 2, y - h, w, h, 8); else g.rect(x - w / 2, y - h, w, h);
   g.fill(); g.stroke();
   g.textAlign = 'center'; g.textBaseline = 'alphabetic';
-  g.fillStyle = `hsl(${hue} 85% 80%)`; g.font = `italic ${Math.round(15 * clamp(S, 0.8, 1.1))}px Georgia, serif`; g.fillText(title, x, y - h * 0.52);
-  g.fillStyle = 'rgba(243,237,228,0.7)'; g.font = `600 ${Math.round(10.5 * clamp(S, 0.85, 1.1))}px system-ui, sans-serif`; g.fillText(state.toUpperCase(), x, y - h * 0.18);
+  g.fillStyle = TH.light ? `hsl(${hue} 70% 30%)` : `hsl(${hue} 85% 80%)`; g.font = `italic ${Math.round(15 * clamp(S, 0.8, 1.1))}px Georgia, serif`; g.fillText(title, x, y - h * 0.52);
+  g.fillStyle = TH.light ? 'rgba(40,24,20,0.7)' : 'rgba(243,237,228,0.7)'; g.font = `600 ${Math.round(10.5 * clamp(S, 0.85, 1.1))}px system-ui, sans-serif`; g.fillText(state.toUpperCase(), x, y - h * 0.18);
 }
 function drawHint() {
   if (interacted || activeN) { hintA = Math.max(0, hintA - 0.04); } else hintA = Math.min(1, hintA + 0.02);
   if (hintA < 0.01) return;
   g.globalAlpha = hintA * (0.6 + 0.25 * Math.sin(T * 2.2));
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = `italic ${Math.round(clamp(15 * S, 12, 17))}px Georgia, serif`; g.fillStyle = '#f3ede4';
+  g.font = `italic ${Math.round(clamp(15 * S, 12, 17))}px Georgia, serif`; g.fillStyle = TH.light ? '#f6eee2' : '#f3ede4';
   g.fillText(W < 520 ? 'Tap a musician to bring them in' : 'Click a musician to bring them in · shift-click to play once · click the conductor for everyone', CX, H - 14 * clamp(S, 0.8, 1.2));
   g.globalAlpha = 1;
 }
@@ -953,7 +1055,7 @@ function frame(now) {
   cond.c = ease(cond.c, activeN && since < 2.5 ? 1 : 0, 3, dt);
   cond.hov = ease(cond.hov, hover === cond ? 1 : 0, 12, dt);
   for (let i = figs.length - 1; i >= 0; i--) {
-    const f = figs[i], act = !f.leaving && f.seat.active;
+    const f = figs[i], act = !f.leaving && (f.seat.active || f.live > 0.12);
     if (act && !f.was) { f.cyc = 0; f.pending = true; }
     f.was = act;
     if (f.delay > 0) { f.delay -= dt; continue; }
@@ -965,6 +1067,7 @@ function frame(now) {
     f.hit *= Math.exp(-6 * dt); f.flash *= Math.exp(-4 * dt); f.strike *= Math.exp(-9 * dt);
     for (let j = 0; j < 12; j++) f.amps[j] *= Math.exp(-2.6 * dt);
     f.hov = ease(f.hov, f === hover ? 1 : 0, 12, dt);
+    f.sel = ease(f.sel, isSel(f) ? 1 : 0, 10, dt); f.live *= Math.exp(-1.1 * dt);
     if (act && !f.pending) f.cyc += dt / loopSec;
     if (f.bowT0) f.bowU = lerp(f.bowFrom, f.bowTo, smooth(clamp((now - f.bowT0) / f.bowDur, 0, 1)));
     if (!reduced && f.lit > 0.5 && Math.random() < dt * 0.9) spawn(MOTE, f.x + rnd(-0.3, 0.3) * f.h, rnd(VAL, f.y), rnd(-4, 4) * S, rnd(-8, 3) * S, rnd(2.5, 4), 1.4 * S, '#ffe9c4', null);
@@ -981,21 +1084,23 @@ function frame(now) {
   g.fillStyle = '#060406'; g.fillRect(0, 0, cv.width, cv.height);
   g.setTransform(bA, 0, 0, bA, bE, bF);
   g.drawImage(bg, 0, 0, W, H);
-  if (house > 0.01) { g.fillStyle = `rgba(5,2,6,${0.3 * house})`; g.fillRect(0, 0, W, H); }
+  if (house > 0.01) { g.fillStyle = `rgba(5,2,6,${(TH.light ? 0.1 : 0.3) * house})`; g.fillRect(0, 0, W, H); }
   g.lineCap = 'round'; g.lineJoin = 'round';
   drawLights();
+  drawOrganShimmer();
   for (const f of figs) drawFig(f, now);
+  drawSelection();
   drawConductor(now, spb);
   drawTrail();
   drawParticles(dt, bA, bE, bF);
   drawBeams();
   g.drawImage(fg, 0, 0, W, H);
-  drawCurtainShimmer();
   drawChandeliers();
   if (loopFlash > 0.02 && house > 0.2) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = loopFlash * 0.25; g.drawImage(WARM, CX - W * 0.6, cond.y - H * 0.9, W * 1.2, H * 1.2); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
   drawLabel();
   drawHint();
 }
+readTheme();
 fit();
 relayout();
 requestAnimationFrame(frame);
