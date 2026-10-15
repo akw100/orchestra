@@ -97,6 +97,8 @@ const ICON_AGAIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12
 
 const root = document.createElement('aside');
 root.className = 'sb';
+root.style.display = 'none'; // until songs.css is in, or the drawer would visibly fly off on load
+css.addEventListener('load', () => (root.style.display = ''));
 root.innerHTML = `
   <button class="sb-pill" type="button" aria-label="Open the songbook and play by typing">${ICON_NOTE}<span>Songbook</span><kbd>\`</kbd></button>
   <section class="sb-panel" aria-label="Songbook: play by typing">
@@ -449,15 +451,26 @@ function celebrate() {
 }
 
 // ---------- open / close ----------
+// keys.js floats a HUD at the bottom centre: sit the drawer (and lift the pill) above it
+function hudRoom() {
+  const hud = document.querySelector('.k-hud'), r = hud?.getBoundingClientRect();
+  const room = r && r.height ? Math.round(innerHeight - r.top) + 8 : 0;
+  root.classList.toggle('has-hud', room > 0);
+  root.style.setProperty('--hud-room', room + 'px');
+  root.style.setProperty('--pill-lift', r && r.right > innerWidth - 190 ? room + 'px' : '0px');
+}
+addEventListener('resize', hudRoom); setTimeout(hudRoom, 400);
 let padPrev = '';
-const ro = new ResizeObserver(() => { if (open) document.body.style.paddingBottom = panel.offsetHeight + 24 + 'px'; });
+const padFor = () => panel.offsetHeight + (parseFloat(root.style.getPropertyValue('--hud-room')) || 0) + 24 + 'px';
+const ro = new ResizeObserver(() => { if (open) document.body.style.paddingBottom = padFor(); });
 ro.observe(panel);
 export function enter() {
   if (open) return;
   open = true; padPrev = document.body.style.paddingBottom;
+  hudRoom();
   renderInsts();
   root.classList.add('is-open'); panel.inert = false;
-  document.body.style.paddingBottom = panel.offsetHeight + 24 + 'px';
+  document.body.style.paddingBottom = padFor();
   requestAnimationFrame(() => layout(true));
   if (typewriter) setTypewriter(true);
 }
@@ -468,12 +481,14 @@ export function exit() {
   document.body.style.paddingBottom = padPrev;
   kbd.querySelectorAll('.is-down').forEach((k) => k.classList.remove('is-down'));
 }
+export const onModeChange = (m) => (m === 'play' ? enter() : exit());
+// typewriter needs Space as a word break; keys.js can ask before treating Space as Tutti
+export const wantsSpace = () => open && typewriter;
 // ask keys.js to switch modes (it owns the mode); fall back to opening ourselves
 function requestMode(on) {
-  if (hasKeysJs()) {
-    for (const type of ['keydown', 'keyup']) dispatchEvent(new KeyboardEvent(type, { key: '`', code: 'Backquote', bubbles: true }));
-    setTimeout(() => { if (open !== on) on ? enter() : exit(); }, 80);
-  } else on ? enter() : exit();
+  if (!hasKeysJs()) return on ? enter() : exit();
+  import('./keys.js').then((k) => k.setMode?.(on ? 'play' : 'conduct'), () => {})
+    .finally(() => { if (open !== on) on ? enter() : exit(); });
 }
 $('.sb-pill').addEventListener('click', () => requestMode(true));
 // mouse clicks shouldn't leave a focus ring on a panel button while you type notes
