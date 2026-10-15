@@ -217,6 +217,7 @@ body:not(.playing) .timeline.running { opacity: 0.55; transition: opacity 0.6s; 
   position: relative;
   display: grid;
   grid-template-columns: 8px minmax(0, 1fr) auto;
+  grid-template-rows: auto 1fr auto;
   grid-template-areas: 'meter name count' 'meter seats seats' 'modes modes modes';
   gap: 14px 14px;
   padding: 16px 16px 14px;
@@ -324,6 +325,7 @@ body:not(.playing) .timeline.running { opacity: 0.55; transition: opacity 0.6s; 
 /* ---------- section modes: segmented control with gliding indicator ---------- */
 .modes {
   grid-area: modes;
+  align-self: end;
   position: relative;
   display: flex;
   padding: 3px;

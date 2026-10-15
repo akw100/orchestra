@@ -218,7 +218,7 @@ sections.addEventListener('click', (e) => {
 // ---------- notes: chip pulse in the instrument hue + section meter ----------
 addEventListener('orch:note', (e) => {
   const { seat, inst, vel } = e.detail;
-  level[inst] = Math.min(1, (level[inst] || 0) * 0.55 + vel * 0.75);
+  level[inst] = Math.min(1, (level[inst] || 0) * 0.5 + vel * 0.6);
   if (reduce.matches) return;
   const c = chips.get(seat);
   if (!c) return;
@@ -260,7 +260,7 @@ function frame(now) {
     c.chip.style.setProperty('--p', p <= 0 ? 0 : (p % 1).toFixed(4));
   }
   for (const S of strips.values()) {
-    const l = (level[S.inst.id] || 0) * 0.93;
+    const l = (level[S.inst.id] || 0) * 0.9;
     level[S.inst.id] = l < 0.005 ? 0 : l;
     S.meter.style.setProperty('--lvl', level[S.inst.id].toFixed(3));
   }
