@@ -124,7 +124,7 @@ const quality = qs.get('q') === 'low' ? 'low' : 'high';
 const ctx = { THREE, scene, camera, renderer, canvas, tok: readTok(), reducedMotion, quality, addons: (p) => import('three/addons/' + p) };
 const fx = createFX(ctx);
 const post = createPost(ctx);
-window.fx = fx; window.post = post; window.ctx = ctx;
+window.fx = fx; window.post = post; window.ctx = ctx; window.controls = controls;
 
 function theme() {
   const tok = readTok(); ctx.tok = tok;
