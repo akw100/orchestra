@@ -1,27 +1,26 @@
-/* Programme: the repertoire as a printed concert programme (programme.js).
+/* Programme: the repertoire as the running order on the back of a printed concert programme (programme.js).
    Colors, faces and easing come from the shared tokens in theme.css / style.css (--c-*, --display, --sans). */
 
-.pg { margin: 0 0 30px; }
+.pg { margin: 0 0 26px; }
 
 /* ---------- head: a <summary>, so the whole programme folds away ---------- */
 .pg-head {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 20px;
-  padding: 2px 0 14px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px;
+  padding: 0 0 10px;
   list-style: none;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 .pg-head::-webkit-details-marker { display: none; }
-.pg-h { margin: 0; font: 500 clamp(1.9rem, 4vw, 2.6rem)/1 var(--display); letter-spacing: -0.015em; }
-.pg-hint, .pg-cur { margin-right: auto; font: italic 400 1.05rem/1.3 var(--display); color: var(--c-accent); }
+.pg-h { margin: 0; font: 500 clamp(1.6rem, 3.2vw, 2.2rem)/1 var(--display); letter-spacing: -0.015em; }
+.pg-hint, .pg-cur { margin-right: auto; font: italic 400 1rem/1.3 var(--display); color: var(--c-accent); }
 .pg-hint { max-width: 56ch; }
-.pg-cur { display: none; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; font-size: 1.15rem; }
-.pg-cur span { font: 500 0.66rem/1 var(--sans); letter-spacing: 0.2em; text-transform: uppercase; color: var(--c-muted); }
+.pg-cur { display: none; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; font-size: 1.12rem; }
+.pg-cur span { font: 500 0.64rem/1 var(--sans); letter-spacing: 0.2em; text-transform: uppercase; color: var(--c-muted); }
 .pg:not([open]) .pg-hint { display: none; }
 .pg:not([open]) .pg-cur { display: inline-flex; }
-.pg:not([open]) .pg-head { padding-bottom: 18px; border-bottom: 1px solid var(--c-line); }
+.pg:not([open]) .pg-head { padding-bottom: 14px; border-bottom: 1px solid var(--c-line); }
 .pg-fold {
-  align-self: center;
   display: grid; place-items: center;
   width: 30px; height: 30px;
   font-size: 15px;
@@ -34,60 +33,13 @@
 .pg-head:hover .pg-fold { border-color: var(--c-accent); color: var(--c-accent); }
 .pg-head:focus-visible { outline-offset: 6px; border-radius: 4px; }
 
-/* ---------- acts: columns of a printed programme ---------- */
-.pg-acts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-  gap: 26px 40px;
-  padding-top: 20px;
-  border-top: 1px solid var(--c-line);
-}
-.pg-act h3 { display: flex; align-items: baseline; gap: 12px; margin: 0 0 10px; }
-.pg-act h3::after { content: ''; flex: 1; align-self: center; height: 1px; background: linear-gradient(90deg, var(--line-strong), transparent); }
-.pg-act-n { font: italic 500 1.08rem/1 var(--display); color: var(--c-accent); }
-.pg-act-t { font: 500 0.7rem/1 var(--sans); letter-spacing: 0.24em; text-transform: uppercase; color: var(--c-muted); }
-.pg-list { display: grid; gap: 2px; margin: 0 -13px; padding: 0; list-style: none; }
-
-/* ---------- a work ---------- */
-.pg-work {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 136px;
-  grid-template-areas: 'title inc' 'meta inc';
-  align-items: center;
-  gap: 5px 16px;
-  width: 100%;
-  padding: 11px 12px;
-  text-align: left;
-  color: var(--c-ink);
-  background: transparent;
-  border: 1px solid transparent; border-radius: 4px;
-  transition: background-color 0.3s, border-color 0.45s, box-shadow 0.45s;
-}
-.pg-title {
-  grid-area: title; align-self: end;
-  font: 500 1.28rem/1.12 var(--display); letter-spacing: -0.005em;
-  text-wrap: balance;
-  transition: color 0.3s;
-}
-.pg-meta, .pg-next { grid-area: meta; align-self: start; }
-.pg-meta {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px;
-  font: 500 0.66rem/1.4 var(--sans); letter-spacing: 0.18em; text-transform: uppercase;
-  color: var(--c-muted);
-}
-.pg-year::before { content: '·'; margin-right: 8px; }
-.pg-key { margin-left: 4px; font: italic 400 0.92rem/1 var(--display); letter-spacing: 0; text-transform: none; }
-.pg-next { display: none; font: italic 400 0.95rem/1.3 var(--display); color: var(--c-accent); }
-
-/* incipit: engraved opening on a five-line staff, fading out to the right like a torn-off line of score */
+/* the stand: the opening bar of the work being played, engraved from its melody, lit note by note */
+.pg-stand { width: 136px; line-height: 0; color: var(--c-accent); }
 .pg-inc {
-  grid-area: inc;
-  width: 136px; height: auto;
+  width: 100%; height: auto;
   overflow: visible;
-  color: color-mix(in srgb, var(--c-muted) 80%, transparent);
   -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent);
           mask-image: linear-gradient(90deg, #000 88%, transparent);
-  transition: color 0.4s;
 }
 .pg-inc .st, .pg-inc .ledger { stroke: currentColor; stroke-width: 0.7; }
 .pg-inc .st { opacity: 0.4; }
@@ -97,41 +49,87 @@
 .pg-inc .hd, .pg-inc .dot { fill: currentColor; }
 .pg-inc .hd.open { fill: none; stroke: currentColor; stroke-width: 1.05; }
 .pg-inc .n { transform-box: fill-box; transform-origin: center; transition: opacity 0.35s, color 0.35s; }
+.pg-stand.is-live .n { opacity: 0.3; }
+.pg-stand.is-live .n.on { opacity: 1; }
+.pg-stand.is-live .n.now { color: var(--accent-hi); filter: drop-shadow(0 1px 2px var(--c-glow)); transition: none; }
 
-/* hover / pressed */
+/* ---------- acts: three short columns of one-line entries ---------- */
+.pg-acts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 14px 40px;
+  padding-top: 14px;
+  border-top: 1px solid var(--c-line);
+}
+.pg-act h3 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 4px; }
+.pg-act h3::after { content: ''; flex: 1; align-self: center; height: 1px; background: linear-gradient(90deg, var(--line-strong), transparent); }
+.pg-act-n { font: italic 500 0.95rem/1 var(--display); color: var(--c-accent); }
+.pg-act-t { font: 500 0.62rem/1 var(--sans); letter-spacing: 0.24em; text-transform: uppercase; color: var(--c-muted); }
+.pg-list { margin: 0 -8px; padding: 0; list-style: none; }
+
+/* ---------- a work: title ........ composer ---------- */
+.pg-work {
+  display: flex; align-items: baseline; gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  text-align: left;
+  color: var(--c-ink);
+  background: transparent;
+  border: 0; border-radius: 3px;
+  transition: background-color 0.25s;
+}
+/* a note head marks the work on the stands (space reserved on every line so the titles stay aligned) */
+.pg-work::before {
+  content: '';
+  flex: none; align-self: center;
+  width: 7px; height: 5px;
+  border-radius: 50%;
+  background: var(--c-accent);
+  transform: rotate(-20deg) scale(0.3);
+  opacity: 0;
+  transition: transform 0.45s var(--ease-out), opacity 0.3s;
+}
+.pg-title {
+  min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 500 1.06rem/1.35 var(--display);
+  transition: color 0.25s;
+}
+.pg-lead {
+  flex: 1 1 16px; min-width: 16px;
+  border-bottom: 1.5px dotted color-mix(in srgb, var(--c-muted) 55%, transparent);
+  transform: translateY(-3px);
+}
+.pg-by, .pg-next { flex: none; }
+.pg-by { font: 500 0.64rem/1 var(--sans); letter-spacing: 0.18em; text-transform: uppercase; color: var(--c-muted); transition: color 0.25s; }
+.pg-next { display: none; font: italic 400 0.95rem/1 var(--display); color: var(--c-accent); }
+
 .pg-work:hover { background: color-mix(in srgb, var(--c-accent) 7%, transparent); }
 .pg-work:hover .pg-title { color: var(--c-accent); }
-.pg-work:hover .pg-inc { color: var(--c-ink); }
 .pg-work:active { transform: translateY(1px); }
 
-/* on the stands */
-.pg-work.is-cur {
-  background: linear-gradient(180deg, var(--c-surface-2), var(--c-surface) 75%);
-  border-color: var(--line-strong);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 16px 30px -22px var(--c-shadow);
-}
+.pg-work.is-cur { background: color-mix(in srgb, var(--c-accent) 10%, transparent); }
+.pg-work.is-cur::before { opacity: 1; transform: rotate(-20deg); }
 .pg-work.is-cur .pg-title { font-style: italic; color: var(--c-accent); }
-.pg-work.is-cur .pg-inc { color: var(--c-accent); }
-/* while it plays: notes wait dim, light as they sound, the newest one brightest */
-.pg-work.is-live .pg-inc .n { opacity: 0.3; }
-.pg-work.is-live .pg-inc .n.on { opacity: 1; }
-.pg-work.is-live .pg-inc .n.now { color: var(--accent-hi); filter: drop-shadow(0 1px 2px var(--c-glow)); transition: none; }
+.pg-work.is-cur .pg-lead { border-bottom-color: color-mix(in srgb, var(--c-accent) 55%, transparent); }
+.pg-work.is-cur .pg-by { color: var(--c-accent); }
 
 /* queued: turns the page at the top of the loop */
-.pg-work.is-next { border-color: color-mix(in srgb, var(--c-accent) 50%, transparent); border-style: dashed; }
 .pg-work.is-next .pg-title { color: var(--c-accent); }
-.pg-work.is-next .pg-meta { display: none; }
-.pg-work.is-next .pg-next { display: block; animation: pg-wait 1.4s ease-in-out infinite alternate; }
+.pg-work.is-next .pg-lead { border-bottom-color: var(--c-accent); }
+.pg-work.is-next .pg-by { display: none; }
+.pg-work.is-next .pg-next { display: inline; animation: pg-wait 1.4s ease-in-out infinite alternate; }
 @keyframes pg-wait { from { opacity: 1; } to { opacity: 0.45; } }
 
 .pg-live { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-@media (max-width: 720px) {
-  .pg-work { grid-template-columns: minmax(0, 1fr) 108px; gap: 4px 12px; }
-  .pg-inc { width: 108px; }
-  .pg-title { font-size: 1.16rem; }
+@media (max-width: 560px) {
+  .pg-stand { display: none; }
+  .pg-fold { order: 1; margin-left: auto; } /* fold sits beside the heading, the hint wraps below */
+  .pg-hint { order: 2; flex-basis: 100%; }
+  .pg-title { font-size: 1rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .pg-work.is-next .pg-next { animation: none; }
-  .pg-fold { transition: none; }
+  .pg-fold, .pg-work::before { transition: none; }
 }
