@@ -47,6 +47,8 @@ html[data-stage="3d"] .th :is(.th-vignette, .th-beams, .th-curtain, .th-tie, .th
 }
 html[data-stage="3d"] .s3d-switch-thumb { transform: translateX(100%); }
 html.th-active #stage-wrap.th-on .s3d-switch { top: calc(clamp(16px, 4.2vh, 46px) + 10px); left: calc(clamp(12px, 3.4vw, 60px) + 12px); z-index: 20; }
+/* Split view (stage.css) is top-left too from 900px up: slide it past the switch, centred on its 36px height */
+#stage-wrap:has(> .s3d-switch) > .split-toggle { left: 108px; top: 13px; } /* ponytail: 108 = 12 + 88px switch + 8 gap; recheck if the switch buttons change size */
 
 /* ---------- hover label ---------- */
 .s3d-label {
