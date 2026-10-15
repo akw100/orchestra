@@ -194,11 +194,11 @@ export function createDirector(ctx) {
       push = ease(push, f.tutti > 0.5 ? 1 : 0, 0.6, f.dt);
       look.lerp(lookTo, 1 - Math.exp(-2 * f.dt));
       const drift = ctx.reducedMotion ? 0 : 1;
-      camera.position.set(Math.sin(f.t * 0.06) * 0.8 * drift + (look.x - home.x) * 0.25, 5.2 + 0.4 * back - push * 0.4, 14.2 * back - push * 1.6 - focusAmt * 2);
+      camera.position.set(Math.sin(f.t * 0.06) * 0.8 * drift + (look.x - home.x) * 0.25, 4.7 + 0.5 * back - push * 0.4, 12.6 * back - push * 1.4 - focusAmt);
       camera.lookAt(look);
     },
     focus(target) {
-      if (target?.position) { lookTo.copy(target.position).lerp(home, 0.45); focusAmt = 1; }
+      if (target?.position) { lookTo.copy(target.position).lerp(home, 0.7); focusAmt = 0.4; }
       else { lookTo.copy(home); focusAmt = 0; }
     },
     onTutti() {},

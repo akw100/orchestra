@@ -223,7 +223,7 @@ async function boot() {
   function applyLightTheme() {
     const light = tok.theme === 'light';
     LT = light
-      ? { hemi: 1.25, key: 2.2, keyPlay: 2.1, spot: 1.8, rim: 0.15, exposure: 1.0, env: 0.55, fogNear: 30, fogFar: 80 }
+      ? { hemi: 1.25, key: 2.2, keyPlay: 2.0, spot: 3.2, rim: 0.15, exposure: 1.0, env: 0.55, fogNear: 30, fogFar: 80 }
       : { hemi: 0.32, key: 2.0, keyPlay: 1.35, spot: 5.5, rim: 0.55, exposure: 1.05, env: 0.28, fogNear: 22, fogFar: 60 };
     hemi.color.set(light ? '#fff2dc' : '#6c5a82');
     hemi.groundColor.copy(color(tok.stageFloor)).multiplyScalar(light ? 0.9 : 0.35);
@@ -390,7 +390,8 @@ async function boot() {
     c.divideScalar(list.length);
     let rad = 1.2;
     for (const r of list) rad = Math.max(rad, Math.hypot(r.tx - c.x, r.tz - c.z) + 1);
-    call('director', 'focus', { position: c, radius: rad, seat: sel.seat, inst: sel.inst, family: sel.family });
+    const label = sel.seat != null ? `${list[0].inst.name} ${roman(list[0].seat.k + 1)}` : sel.inst ? byId[sel.inst]?.name || sel.inst : sel.family;
+    call('director', 'focus', { position: c, radius: rad, label, seat: sel.seat, inst: sel.inst, family: sel.family });
   }
   addEventListener('orch:select', (e) => {
     const d = e.detail || {};
@@ -480,6 +481,38 @@ async function boot() {
   // ---------- section spotlights (<= 8, no shadows) ----------
   const spots = SPOTS;
   const spotColor = (g) => { const r = [...recs.values()].find((x) => x.group === g); return new THREE.Color().setStyle(`hsl(${r?.inst.hue ?? 40}, 85%, ${tok.theme === 'light' ? 70 : 64}%)`); };
+  // hall.spotAnchors (Vector3s or Object3Ds on the lighting bridge): each section spot hangs from the nearest one
+  const ancTmp = new THREE.Vector3(), ancWant = new THREE.Vector3();
+  function anchorFor(p) {
+    const list = mods.hall?.spotAnchors;
+    if (!Array.isArray(list) || !list.length) return null;
+    ancWant.set(p.x * 0.7, 11.5, p.z + 7.5);
+    let best = null, bd = Infinity;
+    for (const a of list) {
+      if (!a) continue;
+      if (a.isObject3D) a.getWorldPosition(ancTmp); else if (Number.isFinite(a.x)) ancTmp.set(a.x, a.y, a.z); else continue;
+      const d = ancTmp.distanceToSquared(ancWant);
+      if (d < bd) { bd = d; best = best || new THREE.Vector3(); best.copy(ancTmp); }
+    }
+    return best;
+  }
+  // fx.beam (optional): a visible light cone through the haze for every lit section spot
+  function beamFor(s, L, dist) {
+    const fx = mods.fx;
+    if (typeof fx?.beam !== 'function' || (errs.get('fx.beam') || 0) >= 3) return;
+    try {
+      if (!s.beam || s.beamOf !== fx) {
+        if (s.cur < 0.01) return;
+        s.beam = fx.beam(L.position, L.target.position, { color: s.col, angle: L.angle / RAD * 0.8, intensity: 0 }); s.beamOf = fx;
+        s.bColor = s.col.getHex(); s.bAt = L.position.clone(); s.bTo = L.target.position.clone();
+      }
+      const b = s.beam;
+      if (s.bColor !== s.col.getHex()) { b.setColor(s.col); s.bColor = s.col.getHex(); }
+      if (s.bAt.distanceToSquared(L.position) > 1e-4) { b.setSource(L.position); s.bAt.copy(L.position); }
+      if (s.bTo.distanceToSquared(L.target.position) > 1e-4) { b.setTarget(L.target.position); s.bTo.copy(L.target.position); }
+      b.setIntensity(s.cur * (tok.theme === 'light' ? 0.55 : 1) * (0.75 + frame.level * 0.4));
+    } catch (err) { report('fx.beam', err); s.beam = null; s.beamOf = mods.fx; }
+  }
   function updateSpots(dt) {
     const act = new Map(); // group -> {n, x, y, z, minX, maxX}
     for (const r of recs.values()) {
@@ -509,10 +542,12 @@ async function boot() {
       const L = s.light;
       L.intensity = s.cur * LT.spot * (0.8 + frame.level * 0.5);
       L.color.copy(s.col);
-      L.position.set(s.pos.x * 0.7, 11.5, s.pos.z + 7.5);
+      const anc = anchorFor(s.pos);
+      if (anc) L.position.copy(anc); else L.position.set(s.pos.x * 0.7, 11.5, s.pos.z + 7.5);
       L.target.position.set(s.pos.x, s.pos.y + 0.5, s.pos.z);
       const dist = L.position.distanceTo(L.target.position), ext = a ? a.ext : 1;
       L.angle = clamp(Math.atan((ext + 1.4) / dist), 0.07, 0.5);
+      beamFor(s, L, dist);
     }
   }
 
