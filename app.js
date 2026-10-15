@@ -38,20 +38,30 @@ const strips = new Map(); // instId -> strip state
 const chips = new Map(); // seatId -> chip state
 const level = {}; // instId -> meter level 0..1
 
-const families = [];
-for (const inst of O.INSTRUMENTS) {
-  let f = families.find((x) => x.name === inst.family);
-  if (!f) families.push((f = { name: inst.family, insts: [] }));
-  f.insts.push(inst);
-}
-
-for (const fam of families) {
+// Family groups in concert order; instruments registered later (plugins) get strips on the next orch:change.
+const FAMILY_ORDER = ['strings', 'woodwinds', 'brass', 'keys', 'percussion', 'drums', 'voices'];
+const groups = new Map(); // family -> .strips row
+function familyRow(fam) {
+  let row = groups.get(fam);
+  if (row) return row;
   const group = document.createElement('section');
   group.className = 'family';
-  group.innerHTML = `<h3><span>${cap(fam.name)}</span></h3><div class="strips"></div>`;
-  const row = $('.strips', group);
-  for (const inst of fam.insts) row.append(buildStrip(inst));
-  sections.append(group);
+  group.dataset.family = fam;
+  group.innerHTML = `<h3><span>${cap(fam)}</span></h3><div class="strips"></div>`;
+  row = $('.strips', group);
+  groups.set(fam, row);
+  const rank = (f) => { const i = FAMILY_ORDER.indexOf(f); return i < 0 ? FAMILY_ORDER.length : i; };
+  const next = [...sections.children].find((g) => rank(g.dataset.family) > rank(fam));
+  sections.insertBefore(group, next || null);
+  return row;
+}
+function ensureStrips() {
+  for (const inst of O.INSTRUMENTS) {
+    if (strips.has(inst.id)) continue;
+    const el = buildStrip(inst);
+    familyRow(inst.family || 'ensemble').append(el);
+    if (!first) enter(el);
+  }
 }
 
 function buildStrip(inst) {
@@ -164,6 +174,7 @@ const schedule = () => { if (!queued) { queued = true; queueMicrotask(update); }
 
 function update() {
   queued = false;
+  ensureStrips();
   const live = new Set(O.seats.map((s) => s.id));
   for (const [id, c] of chips) if (!live.has(id)) { leave(c); chips.delete(id); }
   const changed = [];
@@ -269,32 +280,34 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // ---------- transport ----------
-const anyOn = () => O.seats.some((s) => s.active);
-function press(btn) {
-  if (!reduce.matches) btn.animate([{ scale: 0.94 }, { scale: 1 }], { duration: 320, easing: EASE_OUT });
-}
 $('#tutti').addEventListener('click', () => O.tutti());
 $('#stop').addEventListener('click', () => O.stopAll());
 
 const bpmIn = $('#bpm');
-function setTempo(v) {
-  O.setBpm(v);
+function showTempo(v) {
   bpmIn.value = v;
   $('#bpmv').textContent = v;
   $('#marking').textContent = marking(v);
   bpmIn.style.setProperty('--fill', ((v - +bpmIn.min) / (+bpmIn.max - +bpmIn.min)).toFixed(3));
 }
-bpmIn.addEventListener('input', () => setTempo(+bpmIn.value));
-setTempo(O.bpm);
-
-// Space toggles Tutti / Stop all, even while a button has focus (keyup default would click it).
-const typing = (t) => t.matches?.('input:not([type=range]), textarea, select, [contenteditable]');
-addEventListener('keydown', (e) => {
-  if (e.code !== 'Space' || typing(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
-  e.preventDefault();
-  if (e.repeat) return;
-  if (anyOn()) { O.stopAll(); press($('#stop')); } else { O.tutti(); press($('#tutti')); }
+bpmIn.addEventListener('input', () => {
+  const v = +bpmIn.value;
+  O.setBpm(v);
+  showTempo(v);
+  dispatchEvent(new CustomEvent('orch:tempo', { detail: { bpm: v, from: 'console' } }));
 });
-addEventListener('keyup', (e) => { if (e.code === 'Space' && !typing(e.target)) e.preventDefault(); });
+addEventListener('orch:tempo', (e) => { if (e.detail?.from !== 'console') showTempo(Math.round(e.detail?.bpm ?? O.bpm)); });
+showTempo(O.bpm);
+
+// ---------- keyboard selection (keys.js dispatches orch:select {inst, seat}) ----------
+addEventListener('orch:select', (e) => {
+  const { inst, seat } = e.detail || {};
+  sections.querySelectorAll('.strip.selected, .seat.selected').forEach((el) => el.classList.remove('selected'));
+  const strip = inst != null ? strips.get(inst)?.el : null;
+  const chip = seat != null ? chips.get(+seat)?.wrap : null;
+  strip?.classList.add('selected');
+  chip?.classList.add('selected');
+  (chip || strip)?.scrollIntoView({ block: 'nearest', behavior: reduce.matches ? 'auto' : 'smooth' });
+});
 
 update();
