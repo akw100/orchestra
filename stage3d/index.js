@@ -135,8 +135,7 @@ function mountToggle() {
 
 if (wrap && forced !== '2d' && hasWebGL2()) {
   mountToggle();
-  // ponytail: 3D is opt-in until the real hall + musicians land; flip back to readPref() !== '2d' then
-  if (forced === '3d' || readPref() === '3d') { root.dataset.stage = '3d'; want3d(); }
+  if (forced === '3d' || readPref() !== '2d') { root.dataset.stage = '3d'; want3d(); }
   else setMode('2d');
 }
 
@@ -224,8 +223,8 @@ async function boot() {
   function applyLightTheme() {
     const light = tok.theme === 'light';
     LT = light
-      ? { hemi: 1.25, key: 2.2, keyPlay: 2.0, spot: 3.2, rim: 0.15, exposure: 1.0, env: 0.55, fogNear: 30, fogFar: 80 }
-      : { hemi: 0.32, key: 2.0, keyPlay: 1.35, spot: 5.5, rim: 0.55, exposure: 1.05, env: 0.28, fogNear: 22, fogFar: 60 };
+      ? { hemi: 1.25, key: 2.2, keyPlay: 2.0, spot: 1.6, beam: 0.3, rim: 0.15, exposure: 1.0, env: 0.55, fogNear: 30, fogFar: 80 }
+      : { hemi: 0.32, key: 2.0, keyPlay: 1.35, spot: 2.6, beam: 0.42, rim: 0.55, exposure: 1.05, env: 0.28, fogNear: 22, fogFar: 60 };
     hemi.color.set(light ? '#fff2dc' : '#6c5a82');
     hemi.groundColor.copy(color(tok.stageFloor)).multiplyScalar(light ? 0.9 : 0.35);
     key.color.set(light ? '#fff1dc' : '#ffd29a');
@@ -512,9 +511,10 @@ async function boot() {
       if (s.bColor !== s.col.getHex()) { b.setColor(s.col); s.bColor = s.col.getHex(); }
       if (s.bAt.distanceToSquared(L.position) > 1e-4) { b.setSource(L.position); s.bAt.copy(L.position); }
       if (s.bTo.distanceToSquared(L.target.position) > 1e-4) { b.setTarget(L.target.position); s.bTo.copy(L.target.position); }
-      b.setIntensity(s.cur * (tok.theme === 'light' ? 0.55 : 1) * (0.75 + frame.level * 0.4));
+      b.setIntensity(s.cur * LT.beam * beamShare * (0.8 + frame.level * 0.35)); // many overlapping cones share the haze
     } catch (err) { report('fx.beam', err); s.beam = null; s.beamOf = mods.fx; }
   }
+  let beamShare = 1;
   function updateSpots(dt) {
     const act = new Map(); // group -> {n, x, y, z, minX, maxX}
     for (const r of recs.values()) {
@@ -536,6 +536,8 @@ async function boot() {
       free.group = g; free.col.copy(spotColor(g)); free.want = lit;
       const a = act.get(g); free.pos.set(a.x, a.y, a.z);
     }
+    let litN = 0; for (const s of spots) litN += s.cur;
+    beamShare = 1 / Math.sqrt(Math.max(1, litN / 2));
     for (const s of spots) {
       s.cur = ease(s.cur, s.want, s.want > s.cur ? 2.2 : 1.6, dt);
       if (s.cur < 0.003 && s.want === 0) { s.group = null; s.cur = 0; }
@@ -589,11 +591,16 @@ async function boot() {
   canvas.addEventListener('pointercancel', () => { down = null; });
   canvas.addEventListener('wheel', () => call('director', 'onUserInput', { type: 'wheel' }), { passive: true });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  let lastClick = { h: undefined, t: 0, x: 0, y: 0 };
   canvas.addEventListener('pointerup', (e) => {
     const d = down; down = null;
     if (!d || d.moved) return;
     const [px, py] = local(e);
     const h = pickAt(px, py);
+    // the second click of a double-click (the director resets the camera on dblclick) must not toggle again
+    const tNow = performance.now(), again = h === lastClick.h && tNow - lastClick.t < 450 && Math.hypot(e.clientX - lastClick.x, e.clientY - lastClick.y) < 10;
+    lastClick = again ? { h: undefined, t: 0, x: 0, y: 0 } : { h, t: tNow, x: e.clientX, y: e.clientY };
+    if (again) return;
     const loopKey = e.button === 2 || d.button === 2 || e.shiftKey || e.altKey;
     if (h === 'conductor') { seats.some((s) => s.active) ? O.stopAll() : O.tutti(); return; }
     if (!h) { if (!curtainOpen && e.button === 0) setCurtains(true); return; }
@@ -651,11 +658,29 @@ async function boot() {
     call('post', 'setSize', w, h);
   }
   new ResizeObserver(fit).observe(wrap);
-  let onScreen = true, live = false, raf = 0, last = 0, avg = 16.7, lastDrop = 0;
-  new IntersectionObserver((es) => { onScreen = es[0].isIntersecting; kick(); }).observe(wrap);
+  let onScreen = true, live = false, raf = 0, last = 0, avg = 16.7, lastDrop = 0, lastTickAt = 0, frameErrs = 0;
+  // Visibility: the IntersectionObserver is only a fast hint. Entries can arrive batched ([out, in]) after a long
+  // main-thread stall (shader compiles), and a sticky Split-view stage never crosses the viewport edge again, so a
+  // stale "offscreen" would park the loop for good. The watchdog below re-measures the real rect every second.
+  const onScreenNow = () => {
+    const r = wrap.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
+  };
+  new IntersectionObserver((es) => { onScreen = es[es.length - 1].isIntersecting; kick(); }).observe(wrap);
   document.addEventListener('visibilitychange', kick);
   function running() { return live && onScreen && !document.hidden && root.dataset.stage === '3d'; }
-  function kick() { if (running() && !raf) { last = performance.now(); raf = requestAnimationFrame(tick); } }
+  // never trust a stale raf id: if no frame ran for a while, assume the request is lost and ask again
+  function kick() {
+    if (!running()) return;
+    if (raf && performance.now() - lastTickAt < 400) return;
+    if (raf) cancelAnimationFrame(raf);
+    last = performance.now(); raf = requestAnimationFrame(tick);
+  }
+  setInterval(() => {
+    if (!live || document.hidden) return;
+    onScreen = onScreenNow();
+    kick(); // no-op while frames are flowing; restarts a parked or lost loop
+  }, 1000);
 
   // ---------- frame loop ----------
   const t0 = performance.now();
@@ -664,7 +689,14 @@ async function boot() {
     raf = 0;
     if (!running()) return;
     raf = requestAnimationFrame(tick);
-    const ms = now - last; last = now;
+    lastTickAt = performance.now();
+    try { frameBody(now); } catch (err) {
+      // one bad frame must never stop the show: log the first few, keep going
+      if (++frameErrs <= 3) console.error('[stage3d] frame error (the loop keeps running):', err);
+    }
+  }
+  function frameBody(now) {
+    const ms = Math.max(0, now - last); last = now;
     const dt = Math.min(0.05, Math.max(0.001, ms / 1000));
     // adaptive resolution: slow frames step the pixel ratio toward 1
     avg += (ms - avg) * 0.05;
@@ -739,7 +771,10 @@ async function boot() {
   setTimeout(() => setCurtains(true), ctx.reducedMotion ? 0 : 700);
   for (const name of ['hall', 'fx', 'post', 'director', 'conductor']) call(name, 'applyTheme', tok);
 
-  window.__stage3d = { THREE, scene, camera, renderer, ctx, mods, realness, get seats3d() { return recs; }, frame, setCurtains, relayout };
+  window.__stage3d = {
+    THREE, scene, camera, renderer, ctx, mods, realness, get seats3d() { return recs; }, frame, setCurtains, relayout,
+    debug: () => ({ live, onScreen, onScreenNow: onScreenNow(), raf, sinceTick: Math.round(performance.now() - lastTickAt), hidden: document.hidden, stage: root.dataset.stage, dpr, frameErrs, errs: Object.fromEntries(errs) }),
+  };
   console.info('[stage3d] 3D stage up · quality', quality, '· modules', Object.entries(realness).map(([k, v]) => `${k}:${v ? 'real' : 'stub'}`).join(' '));
 
   return {
